@@ -1,0 +1,3 @@
+# Version 0.1.0 boundaries
+
+Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields and secret environment variable names must be designated explicitly. Default output is redacted; reveal=true explicitly returns plaintext. Origins record applied layer history, including replaced historical paths. Diff compares redacted values: changes between two hidden secret values cannot be detected from that report. No schema standard implementation. Arrays are compared as whole values. TOML date/time objects cannot be represented by the JSON adapter and are rejected.
