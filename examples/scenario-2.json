@@ -1,0 +1,12 @@
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "n": 3,
+        "copy": "${config:/n}",
+        "message": "n=${config:/n}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,192 @@
+[
+  {
+    "name": "layer merge",
+    "request": {
+      "layers": [
+        {
+          "name": "base",
+          "value": {
+            "db": {
+              "host": "local",
+              "port": 1
+            }
+          }
+        },
+        {
+          "name": "prod",
+          "value": {
+            "db": {
+              "port": 2
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "config/db/host": "local",
+      "config/db/port": 2,
+      "origins//db/port": [
+        "base",
+        "prod"
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "interpolation keeps type",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "n": 3,
+            "copy": "${config:/n}",
+            "message": "n=${config:/n}"
+          }
+        }
+      ]
+    },
+    "expected": {
+      "config/copy": 3,
+      "config/message": "n=3"
+    },
+    "error": false
+  },
+  {
+    "name": "secret aliases",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "db": {
+              "password": "${env:KEY}"
+            },
+            "alias": "${config:/db}"
+          }
+        }
+      ],
+      "env": {
+        "KEY": "secret"
+      },
+      "secret_env": [
+        "KEY"
+      ]
+    },
+    "expected": {
+      "config/db/password": "***",
+      "config/alias": "***"
+    },
+    "error": false
+  },
+  {
+    "name": "unique arrays",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": [
+              2,
+              3
+            ]
+          }
+        }
+      ],
+      "arrays": "unique"
+    },
+    "expected": {
+      "config/x": [
+        1,
+        2,
+        3
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "missing env",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": "${env:MISSING}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "cycle",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": "${config:/b}",
+            "b": "${config:/a}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "type conflict",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": "a"
+          }
+        }
+      ],
+      "strict_types": true
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "numeric constraint wrong type",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": "text"
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "path": "/x",
+          "min": 1
+        }
+      ]
+    },
+    "expected": {
+      "valid": false
+    },
+    "error": false
+  }
+]

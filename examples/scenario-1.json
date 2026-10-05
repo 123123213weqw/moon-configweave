@@ -1,0 +1,21 @@
+{
+  "layers": [
+    {
+      "name": "base",
+      "value": {
+        "db": {
+          "host": "local",
+          "port": 1
+        }
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "port": 2
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "db": {
+          "password": "${env:KEY}"
+        },
+        "alias": "${config:/db}"
+      }
+    }
+  ],
+  "env": {
+    "KEY": "secret"
+  },
+  "secret_env": [
+    "KEY"
+  ]
+}
