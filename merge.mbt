@@ -13,9 +13,9 @@ fn segments(pointer : String) -> Array[String] raise InputError {
   }
   let parts = pointer.split("/").collect()
   ignore(parts.remove(0))
-  parts.map(fn(part) {
+  parts.map(part => {
     part
-    .to_string()
+    .to_owned()
     .replace_all(old="~1", new="/")
     .replace_all(old="~0", new="~")
   })
@@ -33,7 +33,7 @@ fn at(root : Value, pointer : String) -> Value raise {
             raise InputError("missing configuration reference: " + pointer)
         }
       Array(items) => {
-        let n = num(parse_value(part)) catch {
+        let n = num(parse(part)) catch {
           _ => raise InputError("invalid array pointer")
         }
         if n < 0.0 || n.floor() != n || n >= items.length().to_double() {
@@ -58,6 +58,17 @@ fn kind(value : Value) -> String {
     Object(_) => "object"
   }
 }
+
+///|
+let kinds : Array[String] = [
+  "any", "null", "boolean", "number", "string", "array", "object",
+]
+
+///|
+let strategies : Array[String] = ["replace", "append", "unique"]
+
+///|
+let nesting_limit : Int32 = 128
 
 ///|
 fn note_origin(
@@ -102,9 +113,9 @@ fn merge(
   arrays : String,
   strict : Bool,
   origins : Map[String, Array[String]],
-  depth : Int,
+  depth : Int32,
 ) -> Value raise {
-  if depth > 128 {
+  if depth > nesting_limit {
     raise InputError("configuration nesting limit")
   }
   note_origin(origins, path, source)
@@ -162,7 +173,7 @@ fn merge(
 }
 
 ///|
-struct Resolution {
+priv struct Resolution {
   root : Value
   env : Map[String, Value]
   secret_paths : Array[String]
@@ -179,7 +190,7 @@ fn under(path : String, parent : String) -> Bool {
 
 ///|
 fn Resolution::sensitive(self : Resolution, path : String) -> Bool {
-  self.secret_paths.any(fn(parent) { under(path, parent) }) ||
+  self.secret_paths.any(parent => under(path, parent)) ||
   self.tainted.get(path).unwrap_or(false)
 }
 
@@ -188,10 +199,10 @@ fn Resolution::reference(
   self : Resolution,
   token : String,
   owner : String,
-  depth : Int,
+  depth : Int32,
 ) -> Value raise {
   if token.has_prefix("env:") {
-    let name = token.substring(start=4)
+    let name = token[4:].to_owned()
     if self.secret_env.contains(name) {
       self.tainted[owner] = true
     }
@@ -200,13 +211,13 @@ fn Resolution::reference(
       None => raise InputError("missing environment variable: " + name)
     }
   } else if token.has_prefix("config:") {
-    let path = token.substring(start=7)
+    let path = token[7:].to_owned()
     let value = self.resolve(path, depth + 1)
     if self.sensitive(path) ||
-      self.secret_paths.any(fn(child) { under(child, path) }) ||
+      self.secret_paths.any(child => under(child, path)) ||
       self.tainted
       .keys()
-      .any(fn(child) { under(child, path) && self.tainted[child] }) {
+      .any(child => under(child, path) && self.tainted[child]) {
       self.tainted[owner] = true
     }
     value
@@ -220,7 +231,7 @@ fn Resolution::interpolate(
   self : Resolution,
   source : String,
   owner : String,
-  depth : Int,
+  depth : Int32,
 ) -> Value raise {
   let mut remaining = source
   let mut result = ""
@@ -232,7 +243,7 @@ fn Resolution::interpolate(
           Some(pair) => pair
           None => raise InputError("unterminated interpolation at " + owner)
         }
-        let value = self.reference(token.to_string(), owner, depth)
+        let value = self.reference(token.to_owned(), owner, depth)
         if prefix.is_empty() && result == "" && after.is_empty() {
           return value
         }
@@ -241,8 +252,8 @@ fn Resolution::interpolate(
           Number(_) | Bool(_) => canonical(value)
           _ => raise InputError("cannot embed structured configuration value")
         }
-        result += prefix.to_string() + embedded
-        remaining = after.to_string()
+        result += prefix.to_owned() + embedded
+        remaining = after.to_owned()
       }
     }
   } nobreak {
@@ -254,9 +265,9 @@ fn Resolution::interpolate(
 fn Resolution::resolve(
   self : Resolution,
   path : String,
-  depth : Int,
+  depth : Int32,
 ) -> Value raise {
-  if depth > 128 {
+  if depth > nesting_limit {
     raise InputError("interpolation depth limit")
   }
   match self.resolved.get(path) {
@@ -291,26 +302,66 @@ fn Resolution::resolve(
 }
 
 ///|
-fn Resolution::redact(self : Resolution, value : Value, path : String) -> Value {
+fn Resolution::redact(
+  self : Resolution,
+  value : Value,
+  path : String,
+  masked : Array[String],
+) -> Value {
   if self.sensitive(path) {
+    masked.push(path)
     return String("***")
   }
   match value {
     Object(fields) =>
       Object(
-        fields.map(fn(key, child) {
-          self.redact(child, path + "/" + escape_key(key))
+        fields.map((key, child) => {
+          self.redact(child, path + "/" + escape_key(key), masked)
         }),
       )
     Array(items) => {
       let result : Array[Value] = []
       for i = 0; i < items.length(); i = i + 1 {
-        result.push(self.redact(items[i], path + "/" + i.to_string()))
+        result.push(self.redact(items[i], path + "/" + i.to_string(), masked))
       }
       Array(result)
     }
     other => other
   }
+}
+
+///|
+/// Returns the first violated clause of a constraint, checked in the fixed
+/// order type, enum, min, max, or "" when the value satisfies all of them.
+fn violation(value : Value, constraint : Value) -> String raise {
+  let expected = optional_str(get(constraint, "type"), "any")
+  if !kinds.contains(expected) {
+    raise InputError("unknown constraint type: " + expected)
+  }
+  if expected != "any" && expected != kind(value) {
+    return "type mismatch"
+  }
+  if get(constraint, "enum") != Null &&
+    !arr(get(constraint, "enum")).contains(value) {
+    return "not in enum"
+  }
+  if get(constraint, "min") != Null {
+    if kind(value) != "number" {
+      return "numeric minimum requires number"
+    }
+    if num(value) < num(get(constraint, "min")) {
+      return "below minimum"
+    }
+  }
+  if get(constraint, "max") != Null {
+    if kind(value) != "number" {
+      return "numeric maximum requires number"
+    }
+    if num(value) > num(get(constraint, "max")) {
+      return "above maximum"
+    }
+  }
+  ""
 }
 
 ///|
@@ -321,37 +372,16 @@ fn check_constraints(
   let issues : Array[Value] = []
   for constraint in constraints {
     let path = str(get(constraint, "path"))
+    ignore(segments(path))
     let selected = Some(at(value, path)) catch { _ => None }
-    let mut message = ""
-    match selected {
+    let message = match selected {
       None =>
         if truth(get(constraint, "required")) {
-          message = "required value missing"
+          "required value missing"
+        } else {
+          ""
         }
-      Some(v) => {
-        let expected = optional_str(get(constraint, "type"), "any")
-        if expected != "any" && expected != kind(v) {
-          message = "type mismatch"
-        }
-        if get(constraint, "enum") != Null &&
-          !arr(get(constraint, "enum")).contains(v) {
-          message = "not in enum"
-        }
-        if get(constraint, "min") != Null {
-          if kind(v) != "number" {
-            message = "numeric minimum requires number"
-          } else if num(v) < num(get(constraint, "min")) {
-            message = "below minimum"
-          }
-        }
-        if get(constraint, "max") != Null {
-          if kind(v) != "number" {
-            message = "numeric maximum requires number"
-          } else if num(v) > num(get(constraint, "max")) {
-            message = "above maximum"
-          }
-        }
-      }
+      Some(v) => violation(v, constraint)
     }
     if message != "" {
       issues.push(record([("path", String(path)), ("reason", String(message))]))
@@ -361,29 +391,32 @@ fn check_constraints(
 }
 
 ///|
-pub fn run(request : Value) -> Value raise {
-  if get(request, "operation") == String("diff") {
-    let before = get(run(get(request, "old")), "redacted")
-    let after = get(run(get(request, "new")), "redacted")
-    let changes : Array[Value] = []
-    config_diff(before, after, "", changes)
-    return record([
-      ("changes", Array(changes)),
-      ("equal", Bool(changes.is_empty())),
-      ("redacted", Bool(true)),
-    ])
-  }
+fn describe_layers(layers : Array[Value]) -> Value raise {
+  Array(
+    layers.map(layer => {
+      let fields = [("name", get(layer, "name"))]
+      if get(layer, "source") != Null {
+        fields.push(("source", String(str(get(layer, "source")))))
+      }
+      record(fields)
+    }),
+  )
+}
+
+///|
+fn merge_report(request : Value) -> Value raise {
   let arrays = optional_str(get(request, "arrays"), "replace")
-  if !["replace", "append", "unique"].contains(arrays) {
-    raise InputError("unknown array merge strategy")
+  if !strategies.contains(arrays) {
+    raise InputError("unknown array merge strategy: " + arrays)
   }
   let origins : Map[String, Array[String]] = Map([])
   let mut config = Object(Map([]))
   let names : Map[String, Bool] = Map([])
-  for layer in arr(get(request, "layers")) {
+  let layers = arr(get(request, "layers"))
+  for layer in layers {
     let source = str(get(layer, "name"))
     if names.contains(source) {
-      raise InputError("duplicate layer name")
+      raise InputError("duplicate layer name: " + source)
     }
     names[source] = true
     let value = get(layer, "value")
@@ -406,19 +439,14 @@ pub fn run(request : Value) -> Value raise {
     } else {
       obj(get(request, "env"))
     },
-    secret_paths: if get(request, "sensitive") == Null {
-      []
-    } else {
-      string_list(get(request, "sensitive"))
-    },
-    secret_env: if get(request, "secret_env") == Null {
-      []
-    } else {
-      string_list(get(request, "secret_env"))
-    },
+    secret_paths: optional_strings(get(request, "sensitive")),
+    secret_env: optional_strings(get(request, "secret_env")),
     visiting: Map([]),
     resolved: Map([]),
     tainted: Map([]),
+  }
+  for path in resolution.secret_paths {
+    ignore(segments(path))
   }
   let resolved = resolution.resolve("", 0)
   let constraints = if get(request, "constraints") == Null {
@@ -427,15 +455,103 @@ pub fn run(request : Value) -> Value raise {
     arr(get(request, "constraints"))
   }
   let issues = check_constraints(resolved, constraints)
-  let redacted = resolution.redact(resolved, "")
-  let history = origins.map(fn(_, sources) { strings(sources) })
+  let masked : Array[String] = []
+  let redacted = resolution.redact(resolved, "", masked)
+  sort_lexical(masked)
+  let history = origins.map((_, sources) => strings(sources))
   record([
     ("config", if truth(get(request, "reveal")) { resolved } else { redacted }),
     ("redacted", redacted),
+    ("masked", strings(masked)),
     ("origins", Object(history)),
+    ("layers", describe_layers(layers)),
     ("issues", Array(issues)),
     ("valid", Bool(issues.is_empty())),
   ])
+}
+
+///|
+fn export_report(request : Value) -> Value raise {
+  let report = merge_report(request)
+  record([
+    ("text", String(canonical(get(report, "config")))),
+    ("redacted", Bool(!truth(get(request, "reveal")))),
+    ("layers", get(report, "layers")),
+    ("issues", get(report, "issues")),
+    ("valid", get(report, "valid")),
+  ])
+}
+
+///|
+fn diff_report(request : Value) -> Value raise {
+  let before = merge_report(get(request, "old"))
+  let after = merge_report(get(request, "new"))
+  let changes : Array[Value] = []
+  config_diff(
+    get(before, "redacted"),
+    get(after, "redacted"),
+    "",
+    changes,
+    get(before, "origins"),
+    get(after, "origins"),
+  )
+  // Hidden values compare equal, so an override of a secret is reported
+  // through its origin chain instead.
+  let before_masked = string_list(get(before, "masked"))
+  let after_masked = string_list(get(after, "masked"))
+  for path in before_masked {
+    if after_masked.contains(path) {
+      let previous = get(get(before, "origins"), path)
+      let current = get(get(after, "origins"), path)
+      if previous != current {
+        changes.push(
+          record([
+            ("path", String(path)),
+            ("type", String("masked_override")),
+            ("before_origins", previous),
+            ("after_origins", current),
+          ]),
+        )
+      }
+    }
+  }
+  record([
+    ("changes", Array(changes)),
+    ("equal", Bool(changes.is_empty())),
+    ("redacted", Bool(true)),
+  ])
+}
+
+///|
+pub fn run(request : Value) -> Value raise {
+  match get(request, "operation") {
+    Null | String("merge") => merge_report(request)
+    String("diff") => diff_report(request)
+    String("export") => export_report(request)
+    String(other) => raise InputError("unknown operation: " + other)
+    _ => raise InputError("operation must be a string")
+  }
+}
+
+///|
+fn change(
+  path : String,
+  kind : String,
+  values : Array[(String, Value)],
+  before_origins : Value,
+  after_origins : Value,
+) -> Value {
+  let fields = [("path", String(path)), ("type", String(kind))]
+  for pair in values {
+    fields.push(pair)
+  }
+  if get(before_origins, path) != Null {
+    fields.push(("before_origins", get(before_origins, path)))
+  }
+  if get(after_origins, path) != Null {
+    fields.push(("after_origins", get(after_origins, path)))
+  }
+  record(fields)
 }
 
 ///|
@@ -444,6 +560,8 @@ fn config_diff(
   after : Value,
   path : String,
   changes : Array[Value],
+  before_origins : Value,
+  after_origins : Value,
 ) -> Unit {
   if before == after {
     return
@@ -458,38 +576,50 @@ fn config_diff(
         keys[key] = true
       }
       let sorted = keys.keys().collect()
-      sorted.sort()
+      sort_lexical(sorted)
       for key in sorted {
         let next = path + "/" + escape_key(key)
         if !a.contains(key) {
           changes.push(
-            record([
-              ("path", String(next)),
-              ("type", String("added")),
-              ("after", b[key]),
-            ]),
+            change(
+              next,
+              "added",
+              [("after", b[key])],
+              before_origins,
+              after_origins,
+            ),
           )
         } else if !b.contains(key) {
           changes.push(
-            record([
-              ("path", String(next)),
-              ("type", String("removed")),
-              ("before", a[key]),
-            ]),
+            change(
+              next,
+              "removed",
+              [("before", a[key])],
+              before_origins,
+              after_origins,
+            ),
           )
         } else {
-          config_diff(a[key], b[key], next, changes)
+          config_diff(
+            a[key],
+            b[key],
+            next,
+            changes,
+            before_origins,
+            after_origins,
+          )
         }
       }
     }
     _ =>
       changes.push(
-        record([
-          ("path", String(path)),
-          ("type", String("changed")),
-          ("before", before),
-          ("after", after),
-        ]),
+        change(
+          path,
+          "changed",
+          [("before", before), ("after", after)],
+          before_origins,
+          after_origins,
+        ),
       )
   }
 }

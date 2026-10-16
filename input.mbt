@@ -1,7 +1,14 @@
 ///|
 pub(all) suberror InputError {
   InputError(String)
-} derive(Show, Eq)
+} derive(Eq)
+
+///|
+pub impl Show for InputError with fn output(self, logger) {
+  match self {
+    InputError(message) => logger.write_string(message)
+  }
+}
 
 ///|
 fn get(value : Value, key : String) -> Value {
@@ -52,16 +59,8 @@ fn optional_str(value : Value, fallback : String) -> String raise InputError {
 }
 
 ///|
-fn optional_num(value : Value, fallback : Double) -> Double raise InputError {
-  match value {
-    Null => fallback
-    _ => num(value)
-  }
-}
-
-///|
 fn record(fields : Array[(String, Value)]) -> Value {
-  let result : Map[String, Value] = {}
+  let result : Map[String, Value] = Map([])
   for (key, value) in fields {
     result[key] = value
   }
@@ -70,12 +69,28 @@ fn record(fields : Array[(String, Value)]) -> Value {
 
 ///|
 fn strings(items : Array[String]) -> Value {
-  Array(items.map(fn(s) { String(s) }))
+  Array(items.map(s => String(s)))
 }
 
 ///|
 fn string_list(value : Value) -> Array[String] raise InputError {
-  arr(value).map(fn(item) { str(item) })
+  arr(value).map(item => str(item))
+}
+
+///|
+fn optional_strings(value : Value) -> Array[String] raise {
+  if value == Null {
+    []
+  } else {
+    string_list(value)
+  }
+}
+
+///|
+/// Canonical key order is UTF-16 code unit order (as in RFC 8785), not the
+/// length-first order that `Compare for String` provides.
+fn sort_lexical(items : Array[String]) -> Unit {
+  items.sort_by(String::lexical_compare)
 }
 
 ///|
@@ -83,10 +98,10 @@ fn canonical(value : Value) -> String {
   match value {
     Object(fields) => {
       let keys = fields.keys().collect()
-      keys.sort()
+      sort_lexical(keys)
       "{" +
       keys
-      .map(fn(k) { String(k).stringify() + ":" + canonical(fields[k]) })
+      .map(k => String(k).stringify() + ":" + canonical(fields[k]))
       .join(",") +
       "}"
     }
