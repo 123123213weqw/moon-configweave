@@ -39,8 +39,14 @@ JSON/TOML 适配；路径和值模型；明确的合并策略；变量插值与�
 本项目属于第 2 轮：先完成模型与接口，再交付可运行的核心链路和三个场景，随后完成规模验证、失败路径、当前提交的 CI 与公开包独立消费验证。主要取舍是让统一核心能力服务多个场景，同时将运行环境和暂不支持的语义写清；完成状态以实际源码和验证记录更新。目标截止日期为 2026-10-31，进度以实际里程碑为准。
 
 
-## 已完成版本与原方案的区别
+## 已完成版本与原方案的区别 (completed version versus the plan)
 
-公开仓库：https://github.com/123123213weqw/moon-configweave
+Public repository: https://github.com/123123213weqw/moon-configweave
 
-当前为 0.1.0 初始实现。上文规模和高级功能属于参考方案；实际已实现功能、测试命令和限制以 README、docs/boundaries.md 为准。不能把规划代码量、用户案例和性能目标写成已完成结果。
+**Current release: 1.0.0 (2026-10-16), the complete implementation of the proposed scope.** The sections above are the original proposal text from the planning stage and are kept unchanged for reference; the facts below describe what is actually delivered.
+
+- The three usage scenarios (service environment configuration, CI multi-platform configuration, multi-tenant configuration audit) exist as real input files under `examples/` and are executed end to end by `scripts/scenarios.py`.
+- The acceptance checks are executable: `scripts/reference.py` compares the engine with an independent Python implementation over 100 environment/tenant configuration sets, including key-order invariance and secret masking; the failure checks cover interpolation cycles, missing environment variables, type conflicts, array merge strategies and deep paths (128-level limit).
+- Deliverables are in the repository: public MoonBit source, library interface, CLI, scenarios with their input sources, unit/integration/scenario tests, CI for the applicable targets, installation and usage documentation, design and boundary documents, source statistics (`scripts/stats.py`) and independent consumption verification of the published package (`scripts/consume.sh`).
+- The source line-count range in the proposal was an internal planning estimate; it is not an acceptance threshold and is not reported as a result. `scripts/stats.py` reports the actual numbers.
+- Not done and not claimed: a remote configuration source, a general expression or schema language for constraints, TOML date/time values and the other limits listed in `docs/boundaries.md`.
