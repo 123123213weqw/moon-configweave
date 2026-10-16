@@ -1,0 +1,13 @@
+{
+  "job": {
+    "runner": "macos-14",
+    "timeout_minutes": 45,
+    "steps": ["moon test --target native"]
+  },
+  "paths": {
+    "home": "/Users/runner"
+  },
+  "matrix": {
+    "targets": ["wasm-gc", "native"]
+  }
+}

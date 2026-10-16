@@ -17,7 +17,8 @@ def load(request, base):
     for layer in request['layers']:
         layer = dict(layer)
         if 'file' in layer:
-            path = (base / layer.pop('file')).resolve()
+            name = layer.pop('file')
+            path = (base / name).resolve()
             # Layer files are read only; keep all referenced files within the manifest directory.
             if not path.is_relative_to(base):
                 raise ValueError('Layer file leaves manifest directory')
@@ -29,6 +30,7 @@ def load(request, base):
                 layer['value'] = json.loads(path.read_text(encoding='utf-8'))
             else:
                 raise ValueError('Only JSON and TOML layer files are supported')
+            layer.setdefault('source', name)
         layers.append(layer)
     request['layers'] = layers
     environment = dict(request.get('env', {}))
@@ -36,6 +38,9 @@ def load(request, base):
         if name in os.environ: environment[name] = os.environ[name]
     request['env'] = environment
     return request
+
+class EngineError(Exception):
+    """The engine rejected the request; its message names paths, never values."""
 
 def main():
     parser = argparse.ArgumentParser()
@@ -47,7 +52,10 @@ def main():
     result = subprocess.run(['node', str(cli), '-'], input=json.dumps(request,allow_nan=False),
         capture_output=True, text=True, encoding='utf-8', timeout=60)
     if result.returncode:
-        raise RuntimeError(result.stdout or result.stderr)
+        try:
+            raise EngineError(json.loads(result.stdout)['error'])
+        except (ValueError, KeyError, TypeError):
+            raise RuntimeError('engine failed') from None
     report = json.loads(result.stdout)
     print(json.dumps(report, ensure_ascii=False, indent=2))
     return 0 if report.get('valid', True) else 1
@@ -56,6 +64,9 @@ if __name__ == '__main__':
     try:
         sys.stdout.reconfigure(encoding='utf-8')
         raise SystemExit(main())
+    except EngineError as error:
+        print(json.dumps({'error': str(error)}), file=sys.stderr)
+        raise SystemExit(1)
     except Exception as error:
         # Avoid printing input values or environment contents on failures.
         print(type(error).__name__ + ': input could not be processed', file=sys.stderr)

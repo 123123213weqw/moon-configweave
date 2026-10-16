@@ -1,0 +1,52 @@
+{
+  "layers": [
+    {
+      "name": "defaults",
+      "file": "defaults.json"
+    },
+    {
+      "name": "org-acme",
+      "file": "org-acme.toml"
+    },
+    {
+      "name": "tenant-b",
+      "file": "tenant-b.json"
+    }
+  ],
+  "allow_environment": [
+    "PORTAL_CLIENT_SECRET",
+    "ACME_WEBHOOK_KEY"
+  ],
+  "secret_env": [
+    "PORTAL_CLIENT_SECRET",
+    "ACME_WEBHOOK_KEY"
+  ],
+  "sensitive": [
+    "/auth/client_secret",
+    "/integrations/webhook/signing_key"
+  ],
+  "constraints": [
+    {
+      "path": "/app/limits/requests_per_minute",
+      "type": "number",
+      "min": 1,
+      "max": 10000
+    },
+    {
+      "path": "/auth/provider",
+      "type": "string",
+      "enum": [
+        "oidc",
+        "saml"
+      ]
+    },
+    {
+      "path": "/auth/issuer",
+      "required": true
+    },
+    {
+      "path": "/integrations/webhook/signing_key",
+      "required": true
+    }
+  ]
+}

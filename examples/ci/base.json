@@ -1,0 +1,17 @@
+{
+  "job": {
+    "runner": "ubuntu-latest",
+    "timeout_minutes": 30,
+    "steps": ["checkout", "setup-moonbit", "moon test --target js"],
+    "env": {
+      "CI": "true",
+      "MOON_HOME": "${config:/paths/home}/.moon"
+    }
+  },
+  "paths": {
+    "home": "/home/runner"
+  },
+  "matrix": {
+    "targets": ["js", "wasm-gc"]
+  }
+}

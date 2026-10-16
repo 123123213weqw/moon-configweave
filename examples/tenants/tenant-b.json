@@ -1,0 +1,15 @@
+{
+  "app": {
+    "limits": {
+      "requests_per_minute": 100000
+    }
+  },
+  "auth": {
+    "provider": "builtin"
+  },
+  "integrations": {
+    "webhook": {
+      "signing_key": "hardcoded-key-123"
+    }
+  }
+}

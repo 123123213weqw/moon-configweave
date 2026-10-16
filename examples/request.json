@@ -1,0 +1,64 @@
+{
+  "layers": [
+    {
+      "name": "defaults",
+      "source": "defaults.toml",
+      "value": {
+        "service": {
+          "name": "orders",
+          "port": 8080,
+          "log_level": "info",
+          "features": [
+            "metrics"
+          ]
+        },
+        "database": {
+          "host": "localhost",
+          "port": 5432,
+          "user": "orders",
+          "password": "${env:ORDERS_DB_PASSWORD}",
+          "url": "postgres://${config:/database/user}@${config:/database/host}:${config:/database/port}/orders"
+        }
+      }
+    },
+    {
+      "name": "dev",
+      "source": "dev.json",
+      "value": {
+        "service": {
+          "log_level": "debug",
+          "features": [
+            "debugger"
+          ]
+        },
+        "database": {
+          "host": "db.dev.internal"
+        }
+      }
+    }
+  ],
+  "arrays": "unique",
+  "env": {
+    "ORDERS_DB_PASSWORD": "example-only"
+  },
+  "secret_env": [
+    "ORDERS_DB_PASSWORD"
+  ],
+  "constraints": [
+    {
+      "path": "/service/port",
+      "type": "number",
+      "min": 1,
+      "max": 65535
+    },
+    {
+      "path": "/service/log_level",
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ]
+    }
+  ]
+}

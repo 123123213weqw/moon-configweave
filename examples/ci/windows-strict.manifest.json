@@ -1,0 +1,35 @@
+{
+  "layers": [
+    {
+      "name": "base",
+      "file": "base.json"
+    },
+    {
+      "name": "windows",
+      "file": "windows.json"
+    }
+  ],
+  "arrays": "replace",
+  "constraints": [
+    {
+      "path": "/job/runner",
+      "type": "string",
+      "enum": [
+        "ubuntu-latest",
+        "macos-14",
+        "windows-2022"
+      ]
+    },
+    {
+      "path": "/job/timeout_minutes",
+      "type": "number",
+      "min": 5,
+      "max": 120
+    },
+    {
+      "path": "/matrix/targets",
+      "type": "array"
+    }
+  ],
+  "strict_types": true
+}

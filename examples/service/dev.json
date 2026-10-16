@@ -1,0 +1,12 @@
+{
+  "service": {
+    "log_level": "debug",
+    "features": ["debugger"]
+  },
+  "database": {
+    "host": "db.dev.internal"
+  },
+  "cache": {
+    "enabled": true
+  }
+}

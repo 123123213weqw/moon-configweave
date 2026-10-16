@@ -1,0 +1,15 @@
+{
+  "service": {
+    "port": 443,
+    "workers": 8,
+    "features": ["tracing"]
+  },
+  "database": {
+    "host": "db.prod.internal",
+    "port": "5432"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl_seconds": 600
+  }
+}

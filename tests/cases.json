@@ -30,7 +30,8 @@
         "prod"
       ]
     },
-    "error": false
+    "error": false,
+    "note": "Later layers override earlier ones key by key; origins record the override chain for every path."
   },
   {
     "name": "interpolation keeps type",
@@ -50,7 +51,8 @@
       "config/copy": 3,
       "config/message": "n=3"
     },
-    "error": false
+    "error": false,
+    "note": "A whole-string reference keeps the referenced type; an embedded reference is rendered into the text."
   },
   {
     "name": "secret aliases",
@@ -75,9 +77,14 @@
     },
     "expected": {
       "config/db/password": "***",
-      "config/alias": "***"
+      "config/alias": "***",
+      "masked": [
+        "/alias",
+        "/db/password"
+      ]
     },
-    "error": false
+    "error": false,
+    "note": "Secrecy propagates from a secret environment variable through scalar and container aliases; masked lists every redacted path in code-unit order."
   },
   {
     "name": "unique arrays",
@@ -110,6 +117,222 @@
         2,
         3
       ]
+    },
+    "error": false
+  },
+  {
+    "name": "replace arrays by default",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": [
+              3
+            ]
+          }
+        }
+      ]
+    },
+    "expected": {
+      "config/x": [
+        3
+      ],
+      "origins//x": [
+        "a",
+        "b"
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "append arrays",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": [
+              1,
+              2
+            ]
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": [
+              2,
+              3
+            ]
+          }
+        }
+      ],
+      "arrays": "append"
+    },
+    "expected": {
+      "config/x": [
+        1,
+        2,
+        2,
+        3
+      ],
+      "origins//x/2": [
+        "b"
+      ]
+    },
+    "error": false
+  },
+  {
+    "name": "unknown array strategy",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": [
+              1
+            ]
+          }
+        }
+      ],
+      "arrays": "merge"
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "deep path merge",
+    "request": {
+      "layers": [
+        {
+          "name": "base",
+          "value": {
+            "a": {
+              "b": {
+                "c": {
+                  "d": {
+                    "e": {
+                      "f": {
+                        "g": {
+                          "h": {
+                            "i": {
+                              "j": {
+                                "k": {
+                                  "l": 1
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "deep",
+          "value": {
+            "a": {
+              "b": {
+                "c": {
+                  "d": {
+                    "e": {
+                      "f": {
+                        "g": {
+                          "h": {
+                            "i": {
+                              "j": {
+                                "k": {
+                                  "l": 2
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "config/a/b/c/d/e/f/g/h/i/j/k/l": 2,
+      "origins//a/b/c/d/e/f/g/h/i/j/k/l": [
+        "base",
+        "deep"
+      ]
+    },
+    "error": false,
+    "note": "Twelve nested levels merge and are traceable; nesting beyond 128 levels is rejected."
+  },
+  {
+    "name": "non-strict scalar replaces object",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": {
+              "y": 1
+            }
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": 5
+          }
+        }
+      ]
+    },
+    "expected": {
+      "config/x": 5,
+      "origins//x": [
+        "a",
+        "b"
+      ]
+    },
+    "error": false,
+    "note": "Without strict_types a layer may replace a container by a scalar; the origins show which layer did it."
+  },
+  {
+    "name": "strict types allow null base",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": null
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": 1
+          }
+        }
+      ],
+      "strict_types": true
+    },
+    "expected": {
+      "config/x": 1
     },
     "error": false
   },
@@ -167,6 +390,121 @@
     "error": true
   },
   {
+    "name": "embedded structured reference",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "obj": {
+              "k": 1
+            },
+            "text": "v=${config:/obj}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "unterminated interpolation",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": "${env:HOME"
+          }
+        }
+      ],
+      "env": {
+        "HOME": "h"
+      }
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "non-pointer config reference",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": 1,
+            "b": "${config:a}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "missing config reference",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "b": "${config:/nope}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "embedded env and config references",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "port": 5,
+            "url": "host=${env:HOST}:${config:/port}"
+          }
+        }
+      ],
+      "env": {
+        "HOST": "h"
+      }
+    },
+    "expected": {
+      "config/url": "host=h:5"
+    },
+    "error": false
+  },
+  {
+    "name": "sensitive path with reveal",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "db": {
+              "password": "plain",
+              "host": "h"
+            }
+          }
+        }
+      ],
+      "sensitive": [
+        "/db/password"
+      ],
+      "reveal": true
+    },
+    "expected": {
+      "config/db/password": "plain",
+      "redacted/db/password": "***",
+      "redacted/db/host": "h"
+    },
+    "error": false,
+    "note": "reveal=true returns plaintext in config; the redacted report is always available alongside it."
+  },
+  {
     "name": "numeric constraint wrong type",
     "request": {
       "layers": [
@@ -185,8 +523,426 @@
       ]
     },
     "expected": {
-      "valid": false
+      "valid": false,
+      "issues/0/reason": "numeric minimum requires number"
     },
     "error": false
+  },
+  {
+    "name": "constraint first failure",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": "text"
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "path": "/x",
+          "type": "number",
+          "min": 1
+        }
+      ]
+    },
+    "expected": {
+      "valid": false,
+      "issues/0/path": "/x",
+      "issues/0/reason": "type mismatch"
+    },
+    "error": false,
+    "note": "Clauses are checked in the order type, enum, min, max and the first violated clause is reported."
+  },
+  {
+    "name": "required missing",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "path": "/missing",
+          "required": true
+        },
+        {
+          "path": "/also-missing"
+        }
+      ]
+    },
+    "expected": {
+      "valid": false,
+      "issues/0/path": "/missing",
+      "issues/0/reason": "required value missing"
+    },
+    "error": false
+  },
+  {
+    "name": "constraints satisfied",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "mode": "fast",
+            "workers": 4
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "path": "/mode",
+          "type": "string",
+          "enum": [
+            "fast",
+            "safe"
+          ]
+        },
+        {
+          "path": "/workers",
+          "type": "number",
+          "min": 1,
+          "max": 64
+        }
+      ]
+    },
+    "expected": {
+      "valid": true,
+      "issues": []
+    },
+    "error": false
+  },
+  {
+    "name": "unknown constraint type",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        }
+      ],
+      "constraints": [
+        {
+          "path": "/x",
+          "type": "integer"
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "layer sources",
+    "request": {
+      "layers": [
+        {
+          "name": "defaults",
+          "value": {
+            "a": 1
+          },
+          "source": "defaults.toml"
+        },
+        {
+          "name": "prod",
+          "value": {
+            "a": 2
+          },
+          "source": "prod.json"
+        }
+      ]
+    },
+    "expected": {
+      "layers/0/name": "defaults",
+      "layers/0/source": "defaults.toml",
+      "layers/1/source": "prod.json",
+      "config/a": 2
+    },
+    "error": false,
+    "note": "A layer may carry a free-form source label (the host adapter uses the file name) which the report echoes in layer order."
+  },
+  {
+    "name": "duplicate layer name",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        },
+        {
+          "name": "a",
+          "value": {
+            "x": 2
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
+    "name": "export canonical text",
+    "request": {
+      "operation": "export",
+      "layers": [
+        {
+          "name": "b",
+          "value": {
+            "z": 1,
+            "a": {
+              "y": [
+                2,
+                1
+              ],
+              "x": "${config:/z}"
+            }
+          }
+        },
+        {
+          "name": "o",
+          "value": {
+            "a": {
+              "w": true
+            }
+          }
+        }
+      ]
+    },
+    "expected": {
+      "text": "{\"a\":{\"w\":true,\"x\":1,\"y\":[2,1]},\"z\":1}",
+      "redacted": true,
+      "valid": true
+    },
+    "error": false,
+    "note": "export renders the resolved configuration as canonical JSON: object keys sorted, no whitespace, arrays in order."
+  },
+  {
+    "name": "export hides secrets unless revealed",
+    "request": {
+      "operation": "export",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "token": "${env:T}"
+          }
+        }
+      ],
+      "env": {
+        "T": "s3cret"
+      },
+      "secret_env": [
+        "T"
+      ]
+    },
+    "expected": {
+      "text": "{\"token\":\"***\"}",
+      "redacted": true
+    },
+    "error": false
+  },
+  {
+    "name": "export orders keys by code unit",
+    "request": {
+      "operation": "export",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "db": 1,
+            "cache": 2,
+            "10": 3,
+            "9": 4
+          }
+        }
+      ]
+    },
+    "expected": {
+      "text": "{\"10\":3,\"9\":4,\"cache\":2,\"db\":1}"
+    },
+    "error": false,
+    "note": "Keys are ordered by UTF-16 code units (RFC 8785 order): shorter keys do not sort first."
+  },
+  {
+    "name": "diff reports origins",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "layers": [
+          {
+            "name": "base",
+            "value": {
+              "db": {
+                "port": 1,
+                "host": "h"
+              }
+            }
+          }
+        ]
+      },
+      "new": {
+        "layers": [
+          {
+            "name": "base",
+            "value": {
+              "db": {
+                "port": 1,
+                "host": "h"
+              }
+            }
+          },
+          {
+            "name": "prod",
+            "value": {
+              "db": {
+                "port": 2
+              },
+              "cache": true
+            }
+          }
+        ]
+      }
+    },
+    "expected": {
+      "equal": false,
+      "changes/0/path": "/cache",
+      "changes/0/type": "added",
+      "changes/0/after_origins": [
+        "prod"
+      ],
+      "changes/1/path": "/db/port",
+      "changes/1/type": "changed",
+      "changes/1/before": 1,
+      "changes/1/after": 2,
+      "changes/1/before_origins": [
+        "base"
+      ],
+      "changes/1/after_origins": [
+        "base",
+        "prod"
+      ]
+    },
+    "error": false,
+    "note": "Each change names the layers that produced the value on both sides, so an abnormal override can be located."
+  },
+  {
+    "name": "diff cannot see hidden secret changes",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "layers": [
+          {
+            "name": "x",
+            "value": {
+              "k": "${env:S}"
+            }
+          }
+        ],
+        "env": {
+          "S": "one"
+        },
+        "secret_env": [
+          "S"
+        ]
+      },
+      "new": {
+        "layers": [
+          {
+            "name": "x",
+            "value": {
+              "k": "${env:S}"
+            }
+          }
+        ],
+        "env": {
+          "S": "two"
+        },
+        "secret_env": [
+          "S"
+        ]
+      }
+    },
+    "expected": {
+      "equal": true,
+      "redacted": true
+    },
+    "error": false,
+    "note": "Diff compares redacted values by design; two different hidden secrets compare equal."
+  },
+  {
+    "name": "diff reports masked override by origin",
+    "request": {
+      "operation": "diff",
+      "old": {
+        "layers": [
+          {
+            "name": "defaults",
+            "value": {
+              "key": "${env:K}"
+            }
+          }
+        ],
+        "env": {
+          "K": "k1"
+        },
+        "sensitive": [
+          "/key"
+        ]
+      },
+      "new": {
+        "layers": [
+          {
+            "name": "defaults",
+            "value": {
+              "key": "${env:K}"
+            }
+          },
+          {
+            "name": "tenant",
+            "value": {
+              "key": "hardcoded"
+            }
+          }
+        ],
+        "env": {
+          "K": "k1"
+        },
+        "sensitive": [
+          "/key"
+        ]
+      }
+    },
+    "expected": {
+      "equal": false,
+      "changes/0/path": "/key",
+      "changes/0/type": "masked_override",
+      "changes/0/before_origins": [
+        "defaults"
+      ],
+      "changes/0/after_origins": [
+        "defaults",
+        "tenant"
+      ]
+    },
+    "error": false,
+    "note": "When a hidden value is overridden, the diff reports the changed origin chain without revealing either value."
+  },
+  {
+    "name": "unknown operation",
+    "request": {
+      "operation": "bogus",
+      "layers": []
+    },
+    "expected": {},
+    "error": true
   }
 ]

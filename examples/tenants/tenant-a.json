@@ -1,0 +1,10 @@
+{
+  "app": {
+    "limits": {
+      "storage_gb": 50
+    }
+  },
+  "auth": {
+    "session_minutes": 15
+  }
+}

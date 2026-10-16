@@ -1,0 +1,15 @@
+# Organization-level policy applied to every tenant of ACME.
+
+[app]
+locale = "en-GB"
+
+[app.limits]
+requests_per_minute = 1200
+
+[auth]
+provider = "oidc"
+issuer = "https://login.acme.example"
+
+[integrations.webhook]
+url = "https://hooks.acme.example/portal"
+signing_key = "${env:ACME_WEBHOOK_KEY}"

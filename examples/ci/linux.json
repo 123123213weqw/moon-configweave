@@ -1,0 +1,8 @@
+{
+  "job": {
+    "steps": ["moon test --target native"]
+  },
+  "matrix": {
+    "targets": ["wasm-gc", "native"]
+  }
+}

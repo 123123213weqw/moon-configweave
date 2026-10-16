@@ -1,0 +1,21 @@
+{
+  "app": {
+    "name": "portal",
+    "locale": "en-US",
+    "limits": {
+      "requests_per_minute": 600,
+      "storage_gb": 10
+    }
+  },
+  "auth": {
+    "provider": "builtin",
+    "session_minutes": 30,
+    "client_secret": "${env:PORTAL_CLIENT_SECRET}"
+  },
+  "integrations": {
+    "webhook": {
+      "url": "",
+      "signing_key": ""
+    }
+  }
+}

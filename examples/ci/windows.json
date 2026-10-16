@@ -1,0 +1,9 @@
+{
+  "job": {
+    "runner": "windows-2022",
+    "timeout_minutes": "60"
+  },
+  "paths": {
+    "home": "C:/Users/runneradmin"
+  }
+}
