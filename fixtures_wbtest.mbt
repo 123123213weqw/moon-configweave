@@ -355,6 +355,33 @@ test "sensitive path with reveal" {
 }
 
 ///|
+test "sensitive keys mask by name" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"db\":{\"password\":\"pw\",\"host\":\"h\",\"Password\":\"case\"},\"api\":{\"token\":\"t\"},\"alias\":\"${config:/db}\"}}],\"sensitive_keys\":[\"password\",\"token\"]}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "db", "password"]), parse("\"***\""))
+  assert_eq(test_at(result, ["config", "api", "token"]), parse("\"***\""))
+  assert_eq(test_at(result, ["config", "db", "host"]), parse("\"h\""))
+  assert_eq(test_at(result, ["config", "db", "Password"]), parse("\"case\""))
+  assert_eq(test_at(result, ["config", "alias"]), parse("\"***\""))
+  assert_eq(
+    test_at(result, ["masked"]),
+    parse("[\"/alias\",\"/api/token\",\"/db/password\"]"),
+  )
+}
+
+///|
+test "empty sensitive key rejected" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"a\":1}}],\"sensitive_keys\":[\"\"]}",
+    ),
+  )
+}
+
+///|
 test "numeric constraint wrong type" {
   let result = run(
     parse(

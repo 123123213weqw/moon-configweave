@@ -831,6 +831,63 @@
     "note": "reveal=true returns plaintext in config; the redacted report is always available alongside it."
   },
   {
+    "name": "sensitive keys mask by name",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "db": {
+              "password": "pw",
+              "host": "h",
+              "Password": "case"
+            },
+            "api": {
+              "token": "t"
+            },
+            "alias": "${config:/db}"
+          }
+        }
+      ],
+      "sensitive_keys": [
+        "password",
+        "token"
+      ]
+    },
+    "expected": {
+      "config/db/password": "***",
+      "config/api/token": "***",
+      "config/db/host": "h",
+      "config/db/Password": "case",
+      "config/alias": "***",
+      "masked": [
+        "/alias",
+        "/api/token",
+        "/db/password"
+      ]
+    },
+    "error": false,
+    "note": "sensitive_keys designates every path whose last key equals one of the names (exact, case-sensitive) wherever it appears; a reference to a container that holds such a key is masked as a whole."
+  },
+  {
+    "name": "empty sensitive key rejected",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": 1
+          }
+        }
+      ],
+      "sensitive_keys": [
+        ""
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
     "name": "numeric constraint wrong type",
     "request": {
       "layers": [

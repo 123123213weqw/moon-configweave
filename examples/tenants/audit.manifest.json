@@ -23,10 +23,6 @@
       "PORTAL_CLIENT_SECRET",
       "ACME_WEBHOOK_KEY"
     ],
-    "sensitive": [
-      "/auth/client_secret",
-      "/integrations/webhook/signing_key"
-    ],
     "constraints": [
       {
         "path": "/app/limits/requests_per_minute",
@@ -50,6 +46,10 @@
         "path": "/integrations/webhook/signing_key",
         "required": true
       }
+    ],
+    "sensitive_keys": [
+      "client_secret",
+      "signing_key"
     ]
   },
   "new": {
@@ -75,10 +75,6 @@
       "PORTAL_CLIENT_SECRET",
       "ACME_WEBHOOK_KEY"
     ],
-    "sensitive": [
-      "/auth/client_secret",
-      "/integrations/webhook/signing_key"
-    ],
     "constraints": [
       {
         "path": "/app/limits/requests_per_minute",
@@ -102,6 +98,10 @@
         "path": "/integrations/webhook/signing_key",
         "required": true
       }
+    ],
+    "sensitive_keys": [
+      "client_secret",
+      "signing_key"
     ]
   }
 }

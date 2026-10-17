@@ -107,6 +107,7 @@ class Oracle:
         self.env = request.get('env', {})
         self.secret_env = set(request.get('secret_env', []))
         self.sensitive = request.get('sensitive', [])
+        self.sensitive_keys = set(request.get('sensitive_keys', []))
         self.origins = {}
         self.tainted = set()
         self.shadowed = []
@@ -122,8 +123,22 @@ class Oracle:
         self.masked.sort(key=lambda p: p.encode('utf-16-be'))
         self.issues = [issue for issue in map(self.check, request.get('constraints', [])) if issue]
 
+    def designated(self, path):
+        last = path.rsplit('/', 1)[-1].replace('~1', '/').replace('~0', '~') if path else ''
+        return any(under(path, s) for s in self.sensitive) or (path != '' and last in self.sensitive_keys)
+
     def is_masked(self, path):
-        return any(under(path, s) for s in self.sensitive) or path in self.tainted
+        return self.designated(path) or path in self.tainted
+
+    def hides_secret(self, path):
+        """Any designated path strictly below `path` in the merged tree."""
+        def below(value, prefix):
+            if isinstance(value, dict):
+                return any(self.designated(prefix + '/' + esc(k)) or below(v, prefix + '/' + esc(k)) for k, v in value.items())
+            if isinstance(value, list):
+                return any(self.designated(prefix + '/' + str(i)) or below(v, prefix + '/' + str(i)) for i, v in enumerate(value))
+            return False
+        return below(at(self.root, path), path)
 
     def present(self, path):
         try:
@@ -149,7 +164,7 @@ class Oracle:
                 return fallback
             raise KeyError(path)
         value = self.resolve(path)
-        if self.is_masked(path) or any(under(s, path) for s in self.sensitive) or any(under(t, path) for t in self.tainted):
+        if self.is_masked(path) or self.hides_secret(path) or any(under(t, path) for t in self.tainted):
             self.tainted.add(owner)
         return value
 
@@ -347,6 +362,8 @@ def build_case(case):
         last['alias'] = '${config:' + sensitive[0] + '}'
         referenced.add(sensitive[0])
     request['sensitive'] = sensitive
+    if random.random() < 0.3:
+        request['sensitive_keys'] = random.sample(KEYS, 2)      # masks every path ending in those keys, aliases included
     constraints = []
     for path, value in random.sample(plain, min(len(plain), random.randint(0, 2))):
         kind = 'boolean' if isinstance(value, bool) else 'number' if isinstance(value, int) else 'string'
@@ -373,7 +390,7 @@ def build_case(case):
     return request, secrets, referenced
 
 
-coverage = {'layers': 0, 'masked': 0, 'aliases': 0, 'references': 0, 'fallbacks': 0, 'shadowed': 0, 'issues': 0,
+coverage = {'layers': 0, 'masked': 0, 'aliases': 0, 'references': 0, 'fallbacks': 0, 'shadowed': 0, 'key_masks': 0, 'issues': 0,
             'diffs': 0, 'replace': 0, 'append': 0, 'unique': 0, 'per_path': 0}
 
 
@@ -388,6 +405,7 @@ def check_case(case):
     coverage['issues'] += bool(oracle.issues)
     coverage['fallbacks'] += sum(':-' in v for v in request['layers'][-1]['value'].values() if isinstance(v, str))
     coverage['shadowed'] += len(oracle.shadowed)
+    coverage['key_masks'] += 'sensitive_keys' in request and bool(oracle.masked)
     if isinstance(request['arrays'], str):
         coverage[request['arrays']] += 1
     else:
@@ -409,7 +427,10 @@ def check_case(case):
         assert secret not in stdout and secret not in export_out and secret not in shuffled_out, case
     # Diff: change one plain, unreferenced, unmasked leaf of the last layer.
     last = request['layers'][-1]['value']
-    candidates = [p for p, v in leaf_paths(last) if p not in referenced and not oracle.is_masked(p)
+    def visible(path):
+        prefixes = [path[:i] for i, ch in enumerate(path) if ch == '/'] + [path]
+        return not any(oracle.is_masked(prefix) for prefix in prefixes if prefix)
+    candidates = [p for p, v in leaf_paths(last) if p not in referenced and visible(p)
                   and isinstance(v, int) and not isinstance(v, bool)]
     if candidates:
         coverage['diffs'] += 1

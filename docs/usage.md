@@ -984,6 +984,72 @@ Expected result fields:
 }
 ```
 
+## sensitive keys mask by name
+
+sensitive_keys designates every path whose last key equals one of the names (exact, case-sensitive) wherever it appears; a reference to a container that holds such a key is masked as a whole.
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "db": {
+          "password": "pw",
+          "host": "h",
+          "Password": "case"
+        },
+        "api": {
+          "token": "t"
+        },
+        "alias": "${config:/db}"
+      }
+    }
+  ],
+  "sensitive_keys": [
+    "password",
+    "token"
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/db/password": "***",
+  "config/api/token": "***",
+  "config/db/host": "h",
+  "config/db/Password": "case",
+  "config/alias": "***",
+  "masked": [
+    "/alias",
+    "/api/token",
+    "/db/password"
+  ]
+}
+```
+
+## empty sensitive key rejected
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "a": 1
+      }
+    }
+  ],
+  "sensitive_keys": [
+    ""
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## numeric constraint wrong type
 
 ```json

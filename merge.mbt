@@ -250,6 +250,7 @@ priv struct Resolution {
   root : Value
   env : Map[String, Value]
   secret_paths : Array[String]
+  secret_keys : Array[String]
   secret_env : Array[String]
   visiting : Map[String, Bool]
   resolved : Map[String, Value]
@@ -262,9 +263,52 @@ fn under(path : String, parent : String) -> Bool {
 }
 
 ///|
+/// The unescaped last key of a pointer, or "" for the root.
+fn last_key(path : String) -> String {
+  match path.rev_find("/") {
+    Some(index) =>
+      path[index + 1:]
+      .to_owned()
+      .replace_all(old="~1", new="/")
+      .replace_all(old="~0", new="~")
+    None => ""
+  }
+}
+
+///|
 fn Resolution::sensitive(self : Resolution, path : String) -> Bool {
   self.secret_paths.any(parent => under(path, parent)) ||
+  (path != "" && self.secret_keys.contains(last_key(path))) ||
   self.tainted.get(path).unwrap_or(false)
+}
+
+///|
+/// Whether any path strictly below `path` in the merged tree is sensitive by
+/// designation (explicit path or key name).
+fn Resolution::hides_secret(
+  self : Resolution,
+  value : Value,
+  path : String,
+) -> Bool {
+  match value {
+    Object(fields) =>
+      fields
+      .iter()
+      .any(entry => {
+        let child = path + "/" + escape_key(entry.0)
+        self.sensitive(child) || self.hides_secret(entry.1, child)
+      })
+    Array(items) => {
+      for i = 0; i < items.length(); i = i + 1 {
+        let child = path + "/" + i.to_string()
+        if self.sensitive(child) || self.hides_secret(items[i], child) {
+          return true
+        }
+      }
+      false
+    }
+    _ => false
+  }
 }
 
 ///|
@@ -330,7 +374,7 @@ fn Resolution::reference(
     }
     let value = self.resolve(path, depth + 1)
     if self.sensitive(path) ||
-      self.secret_paths.any(child => under(child, path)) ||
+      self.hides_secret(at(self.root, path), path) ||
       self.tainted
       .keys()
       .any(child => under(child, path) && self.tainted[child]) {
@@ -599,6 +643,7 @@ fn merge_report(request : Value) -> Value raise {
       obj(get(request, "env"))
     },
     secret_paths: optional_strings(get(request, "sensitive")),
+    secret_keys: optional_strings(get(request, "sensitive_keys")),
     secret_env: optional_strings(get(request, "secret_env")),
     visiting: Map([]),
     resolved: Map([]),
@@ -606,6 +651,9 @@ fn merge_report(request : Value) -> Value raise {
   }
   for path in resolution.secret_paths {
     ignore(segments(path))
+  }
+  if resolution.secret_keys.contains("") {
+    raise InputError("sensitive key names must not be empty")
   }
   let resolved = resolution.resolve("", 0)
   let constraints = if get(request, "constraints") == Null {

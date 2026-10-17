@@ -27,7 +27,7 @@ python -B scripts/files.py examples/service/diff.manifest.json
 
 ## 3. Multi-tenant configuration audit (`examples/tenants`)
 
-**Inputs.** `defaults.json` (app defaults, a client secret from the environment), `org-acme.toml` (organization policy: locale, rate limit, OIDC provider and issuer, a webhook key from the environment) and two tenants: `tenant-a.json` (storage quota, shorter sessions) and `tenant-b.json` (a rate limit of 100000, auth downgraded back to `builtin`, and a hardcoded webhook signing key). Both sensitive paths are designated; constraints cap the rate limit at 10000, require the OIDC issuer, and restrict the provider enum.
+**Inputs.** `defaults.json` (app defaults, a client secret from the environment), `org-acme.toml` (organization policy: locale, rate limit, OIDC provider and issuer, a webhook key from the environment) and two tenants: `tenant-a.json` (storage quota, shorter sessions) and `tenant-b.json` (a rate limit of 100000, auth downgraded back to `builtin`, and a hardcoded webhook signing key). The secrets are designated by key name (`sensitive_keys: ["client_secret", "signing_key"]`), so they are masked wherever they appear; constraints cap the rate limit at 10000, require the OIDC issuer, and restrict the provider enum.
 
 **Process.** Each tenant manifest resolves defaults → organization → tenant. The audit manifest diffs tenant-a against tenant-b.
 

@@ -12,7 +12,7 @@ Layered configuration audit, implemented in MoonBit with a JSON CLI and reusable
 - **Layer merge**: recursive object merge in layer order with `replace` (default), `append` or `unique` array strategies, assignable per request or per JSON Pointer path; optional `strict_types` rejects type-changing overlays; nesting is limited to 128 levels.
 - **Provenance**: `origins` maps every JSON Pointer path to the ordered list of layers that contributed to it, `shadowed` names the layer each override replaced, and each layer may carry a `source` label (the host adapter uses the file name) echoed in the report.
 - **Interpolation**: `${env:NAME}` and `${config:/json/pointer}` references with optional `:-literal` fallbacks for absent targets; a whole-string reference keeps the referenced type, embedded references render scalars; cycles, missing references and depth limits are rejected.
-- **Secrets**: `sensitive` paths and `secret_env` names are redacted to `***`, and secrecy propagates through scalar and container aliases; `masked` lists every redacted path; output is redacted unless `reveal` is true.
+- **Secrets**: `sensitive` paths, `sensitive_keys` (every path ending in one of the key names) and `secret_env` names are redacted to `***`, and secrecy propagates through scalar and container aliases; `masked` lists every redacted path; output is redacted unless `reveal` is true.
 - **Constraints**: `required`, `type`, `enum`, `pattern` (unanchored regex search), `min_length`/`max_length` (strings and arrays), `min`, `max` per path; the first violated clause is reported in a fixed order; unknown types, clauses and invalid patterns are rejected.
 - **Diff** (`operation: "diff"`): compares two redacted configurations, annotates each change with the origins on both sides, and reports a `masked_override` when a hidden value's origin chain changed without revealing it.
 - **Export** (`operation: "export"`): canonical JSON text (keys in UTF-16 code unit order, no whitespace) for stable artifacts and hashing.
@@ -59,7 +59,7 @@ fn example(request : Json) -> Json raise {
 
 ## Requests and results
 
-A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays` (a strategy name or a per-path map), `strict_types`, `env`, `secret_env`, `sensitive`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `shadowed`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
+A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays` (a strategy name or a per-path map), `strict_types`, `env`, `secret_env`, `sensitive`, `sensitive_keys`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `shadowed`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
 
 ## Scenarios
 
@@ -95,6 +95,6 @@ sh scripts/consume.sh REGISTRY_VERSION  # fresh module consumes the published pa
 
 ## Current boundaries
 
-Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields and secret environment variable names must be designated explicitly. Default output is redacted; `reveal=true` explicitly returns plaintext. Diff compares redacted values: a change between two hidden secrets is only visible when its origin chain changed. Per-path array strategies match exact pointers only. There is no schema standard implementation, no escape sequence for a literal `${`, and no remote configuration source. TOML date/time values cannot be represented by the JSON adapter and are rejected. See [docs/boundaries.md](docs/boundaries.md).
+Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields (by path or by key name) and secret environment variable names must be designated explicitly. Default output is redacted; `reveal=true` explicitly returns plaintext. Diff compares redacted values: a change between two hidden secrets is only visible when its origin chain changed. Per-path array strategies match exact pointers only. There is no schema standard implementation, no escape sequence for a literal `${`, and no remote configuration source. TOML date/time values cannot be represented by the JSON adapter and are rejected. See [docs/boundaries.md](docs/boundaries.md).
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.

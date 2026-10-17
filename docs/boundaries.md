@@ -1,7 +1,7 @@
 # Current boundaries
 
 - Core input is JSON values. TOML is parsed by the optional Python 3.11+ host adapter (`scripts/files.py`); TOML date/time values cannot be represented by the JSON adapter and are rejected.
-- Secret fields and secret environment variable names must be designated explicitly (`sensitive`, `secret_env`). Anything not designated is treated as ordinary data.
+- Secret fields and secret environment variable names must be designated explicitly: by path (`sensitive`), by exact key name anywhere in the tree (`sensitive_keys`, case-sensitive) or by environment variable name (`secret_env`). Anything not designated is treated as ordinary data. A reference to a container is masked as a whole only when the container actually holds a designated or tainted path.
 - Default output is redacted; `reveal=true` explicitly returns plaintext in `config` and in `export` text. The redacted report is always included alongside.
 - Diff compares redacted values. A change between two hidden secrets is invisible as a value change; it is reported as a `masked_override` only when the origin chains differ.
 - Origins record applied layer history, including replaced historical paths, and `shadowed` records which layer each override replaced. Both name layers (and optional source labels); neither retains the historical values themselves.
