@@ -1763,6 +1763,115 @@ Expected result fields:
 }
 ```
 
+## diff ignores designated subtrees
+
+Changes at or below an ignored pointer are dropped from the report, which also silences masked overrides there; the applied pointers are echoed.
+
+```json
+{
+  "operation": "diff",
+  "ignore": [
+    "/build",
+    "/meta/stamp"
+  ],
+  "old": {
+    "layers": [
+      {
+        "name": "a",
+        "value": {
+          "build": {
+            "time": 1,
+            "host": "x"
+          },
+          "meta": {
+            "stamp": 1,
+            "owner": "ops"
+          },
+          "port": 1
+        }
+      }
+    ]
+  },
+  "new": {
+    "layers": [
+      {
+        "name": "a",
+        "value": {
+          "build": {
+            "time": 2,
+            "host": "y"
+          },
+          "meta": {
+            "stamp": 2,
+            "owner": "ops"
+          },
+          "port": 2
+        }
+      }
+    ]
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "equal": false,
+  "changes/0/path": "/port",
+  "ignored": [
+    "/build",
+    "/meta/stamp"
+  ]
+}
+```
+
+## diff is equal when only ignored paths differ
+
+```json
+{
+  "operation": "diff",
+  "ignore": [
+    "/build"
+  ],
+  "old": {
+    "layers": [
+      {
+        "name": "a",
+        "value": {
+          "build": {
+            "time": 1
+          },
+          "port": 1
+        }
+      }
+    ]
+  },
+  "new": {
+    "layers": [
+      {
+        "name": "a",
+        "value": {
+          "build": {
+            "time": 2
+          },
+          "port": 1
+        }
+      }
+    ]
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "equal": true,
+  "changes": []
+}
+```
+
 ## unknown operation
 
 ```json

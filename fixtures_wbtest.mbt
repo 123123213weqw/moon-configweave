@@ -651,6 +651,29 @@ test "diff reports masked override by origin" {
 }
 
 ///|
+test "diff ignores designated subtrees" {
+  let result = run(
+    parse(
+      "{\"operation\":\"diff\",\"ignore\":[\"/build\",\"/meta/stamp\"],\"old\":{\"layers\":[{\"name\":\"a\",\"value\":{\"build\":{\"time\":1,\"host\":\"x\"},\"meta\":{\"stamp\":1,\"owner\":\"ops\"},\"port\":1}}]},\"new\":{\"layers\":[{\"name\":\"a\",\"value\":{\"build\":{\"time\":2,\"host\":\"y\"},\"meta\":{\"stamp\":2,\"owner\":\"ops\"},\"port\":2}}]}}",
+    ),
+  )
+  assert_eq(test_at(result, ["equal"]), parse("false"))
+  assert_eq(test_at(result, ["changes", "0", "path"]), parse("\"/port\""))
+  assert_eq(test_at(result, ["ignored"]), parse("[\"/build\",\"/meta/stamp\"]"))
+}
+
+///|
+test "diff is equal when only ignored paths differ" {
+  let result = run(
+    parse(
+      "{\"operation\":\"diff\",\"ignore\":[\"/build\"],\"old\":{\"layers\":[{\"name\":\"a\",\"value\":{\"build\":{\"time\":1},\"port\":1}}]},\"new\":{\"layers\":[{\"name\":\"a\",\"value\":{\"build\":{\"time\":2},\"port\":1}}]}}",
+    ),
+  )
+  assert_eq(test_at(result, ["equal"]), parse("true"))
+  assert_eq(test_at(result, ["changes"]), parse("[]"))
+}
+
+///|
 test "unknown operation" {
   assert_true(fails("{\"operation\":\"bogus\",\"layers\":[]}"))
 }

@@ -443,6 +443,8 @@ def check_case(case):
         node[parts[-1]] = node[parts[-1]] + 1000
         diff, diff_out = run({'operation': 'diff', 'old': request, 'new': mutated})
         assert [c['path'] for c in diff['changes']] == [path] and diff['changes'][0]['type'] == 'changed', case
+        ignored, _ = run({'operation': 'diff', 'old': request, 'new': mutated, 'ignore': [path.rsplit('/', 1)[0] or path]})
+        assert ignored['equal'] and ignored['changes'] == [], case                      # ignoring the parent hides the change
         assert diff['changes'][0]['after'] == diff['changes'][0]['before'] + 1000, case
         assert diff['changes'][0]['after_origins'] == oracle.origins[path], case
         for secret in secrets:

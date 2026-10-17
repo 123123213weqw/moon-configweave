@@ -57,6 +57,7 @@ def service():
     expect(changed['/service/port']['after_origins'] == ['defaults', 'prod'], 'difference carries its origins')
     expect('/database/password' not in changed, 'identical hidden secrets produce no diff entry')
     expect(changed['/database/url']['after_origins'] == ['defaults'], 'derived value change is reported with its own origin')
+    expect(not any(path.startswith('/cache') for path in changed) and diff['ignored'] == ['/cache'], 'ignored cache subtree is dropped from the diff')
 
     code, export, _ = run('service/export-dev.manifest.json')
     expect(export['text'] == canonical(dev['redacted']), 'export text equals independent canonical JSON of the redacted config')

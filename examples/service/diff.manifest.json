@@ -105,5 +105,8 @@
         "required": true
       }
     ]
-  }
+  },
+  "ignore": [
+    "/cache"
+  ]
 }

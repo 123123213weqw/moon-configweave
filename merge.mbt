@@ -708,6 +708,7 @@ fn export_report(request : Value) -> Value raise {
 fn diff_report(request : Value) -> Value raise {
   let before = merge_report(get(request, "old"))
   let after = merge_report(get(request, "new"))
+  let ignored = optional_strings(get(request, "ignore")).map(canonical_pointer)
   let changes : Array[Value] = []
   config_diff(
     get(before, "redacted"),
@@ -737,9 +738,16 @@ fn diff_report(request : Value) -> Value raise {
       }
     }
   }
+  // Ignored subtrees are dropped after the walk so masked overrides are filtered too.
+  let kept = changes.filter(change => {
+    !ignored.any(parent => {
+      under(str(get(change, "path")) catch { _ => "" }, parent)
+    })
+  })
   record([
-    ("changes", Array(changes)),
-    ("equal", Bool(changes.is_empty())),
+    ("changes", Array(kept)),
+    ("equal", Bool(kept.is_empty())),
+    ("ignored", strings(ignored)),
     ("redacted", Bool(true)),
   ])
 }

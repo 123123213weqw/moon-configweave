@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `diff` accepts `ignore` pointers; changes (including masked overrides) at or below them are dropped and the applied pointers are echoed as `ignored`.
 - `sensitive_keys` designates secrets by exact key name wherever they appear, including through container aliases; the tenant scenario uses it. Alias taint now follows the actual content of the referenced container rather than designated paths that do not exist.
 - Constraints gain `pattern` (unanchored regex search in the toolchain dialect), `min_length` and `max_length` (strings and arrays); unknown clause names and invalid patterns are rejected.
 - `arrays` accepts per-path JSON Pointer assignments in addition to a single global strategy (`{"default": "append", "unique": ["/matrix/targets"]}`); unassigned arrays keep the default.

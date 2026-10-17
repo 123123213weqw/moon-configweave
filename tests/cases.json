@@ -1494,6 +1494,102 @@
     "note": "When a hidden value is overridden, the diff reports the changed origin chain without revealing either value."
   },
   {
+    "name": "diff ignores designated subtrees",
+    "request": {
+      "operation": "diff",
+      "ignore": [
+        "/build",
+        "/meta/stamp"
+      ],
+      "old": {
+        "layers": [
+          {
+            "name": "a",
+            "value": {
+              "build": {
+                "time": 1,
+                "host": "x"
+              },
+              "meta": {
+                "stamp": 1,
+                "owner": "ops"
+              },
+              "port": 1
+            }
+          }
+        ]
+      },
+      "new": {
+        "layers": [
+          {
+            "name": "a",
+            "value": {
+              "build": {
+                "time": 2,
+                "host": "y"
+              },
+              "meta": {
+                "stamp": 2,
+                "owner": "ops"
+              },
+              "port": 2
+            }
+          }
+        ]
+      }
+    },
+    "expected": {
+      "equal": false,
+      "changes/0/path": "/port",
+      "ignored": [
+        "/build",
+        "/meta/stamp"
+      ]
+    },
+    "error": false,
+    "note": "Changes at or below an ignored pointer are dropped from the report, which also silences masked overrides there; the applied pointers are echoed."
+  },
+  {
+    "name": "diff is equal when only ignored paths differ",
+    "request": {
+      "operation": "diff",
+      "ignore": [
+        "/build"
+      ],
+      "old": {
+        "layers": [
+          {
+            "name": "a",
+            "value": {
+              "build": {
+                "time": 1
+              },
+              "port": 1
+            }
+          }
+        ]
+      },
+      "new": {
+        "layers": [
+          {
+            "name": "a",
+            "value": {
+              "build": {
+                "time": 2
+              },
+              "port": 1
+            }
+          }
+        ]
+      }
+    },
+    "expected": {
+      "equal": true,
+      "changes": []
+    },
+    "error": false
+  },
+  {
     "name": "unknown operation",
     "request": {
       "operation": "bogus",

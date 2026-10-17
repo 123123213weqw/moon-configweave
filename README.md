@@ -14,7 +14,7 @@ Layered configuration audit, implemented in MoonBit with a JSON CLI and reusable
 - **Interpolation**: `${env:NAME}` and `${config:/json/pointer}` references with optional `:-literal` fallbacks for absent targets; a whole-string reference keeps the referenced type, embedded references render scalars; cycles, missing references and depth limits are rejected.
 - **Secrets**: `sensitive` paths, `sensitive_keys` (every path ending in one of the key names) and `secret_env` names are redacted to `***`, and secrecy propagates through scalar and container aliases; `masked` lists every redacted path; output is redacted unless `reveal` is true.
 - **Constraints**: `required`, `type`, `enum`, `pattern` (unanchored regex search), `min_length`/`max_length` (strings and arrays), `min`, `max` per path; the first violated clause is reported in a fixed order; unknown types, clauses and invalid patterns are rejected.
-- **Diff** (`operation: "diff"`): compares two redacted configurations, annotates each change with the origins on both sides, and reports a `masked_override` when a hidden value's origin chain changed without revealing it.
+- **Diff** (`operation: "diff"`): compares two redacted configurations, annotates each change with the origins on both sides, reports a `masked_override` when a hidden value's origin chain changed without revealing it, and drops changes under `ignore` pointers (build stamps, caches).
 - **Export** (`operation: "export"`): canonical JSON text (keys in UTF-16 code unit order, no whitespace) for stable artifacts and hashing.
 - **Host adapter**: `scripts/files.py` reads JSON and TOML layer files (Python 3.11+ `tomllib`) and copies allow-listed environment variables; the engine never reads files itself.
 
@@ -59,7 +59,7 @@ fn example(request : Json) -> Json raise {
 
 ## Requests and results
 
-A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays` (a strategy name or a per-path map), `strict_types`, `env`, `secret_env`, `sensitive`, `sensitive_keys`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `shadowed`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
+A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays` (a strategy name or a per-path map), `strict_types`, `env`, `secret_env`, `sensitive`, `sensitive_keys`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `shadowed`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests and an optional `ignore` list of pointers; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
 
 ## Scenarios
 
