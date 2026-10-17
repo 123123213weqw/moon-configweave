@@ -31,8 +31,21 @@ with tempfile.TemporaryDirectory(prefix='configweave-integration-') as temporary
     missing=files(base/'manifest.json',env)
     assert missing.returncode == 1 and missing.stdout == ''
     assert json.loads(missing.stderr)=={'error':'missing environment variable: CONFIG_TEST_KEY'}
+    # A directory layer expands to one layer per JSON/TOML file in name order; other files are ignored.
+    conf = base/'conf.d'; conf.mkdir()
+    (conf/'20-override.json').write_text('{"server":{"port":7000},"extra":"json"}',encoding='utf-8')
+    (conf/'10-base.toml').write_text('[server]\nport = 6000\nname = "dir"\n',encoding='utf-8')
+    (conf/'README.txt').write_text('ignored',encoding='utf-8')
+    (base/'dir.json').write_text(json.dumps({'layers':[{'dir':'conf.d'},{'name':'local','value':{'extra':'local'}}]}),encoding='utf-8')
+    directory=files(base/'dir.json',env)
+    assert directory.returncode == 0, directory.stderr
+    report=json.loads(directory.stdout)
+    assert [layer['name'] for layer in report['layers']]==['conf.d/10-base.toml','conf.d/20-override.json','local']
+    assert [layer.get('source') for layer in report['layers']][:2]==['conf.d/10-base.toml','conf.d/20-override.json']
+    assert report['config']=={'server':{'port':7000,'name':'dir'},'extra':'local'}
+    assert report['origins']['/server/port']==['conf.d/10-base.toml','conf.d/20-override.json']
     # Layer files outside the manifest directory are refused before anything is read.
     (base/'escape.json').write_text(json.dumps({'layers':[{'name':'x','file':'../outside.json'}]}),encoding='utf-8')
     escape=files(base/'escape.json',env)
     assert escape.returncode == 1 and 'could not be processed' in escape.stderr
-    print('Config file integration: real TOML/JSON layer loading, environment allowlist, redaction, source labels and adapter error handling passed')
+    print('Config file integration: real TOML/JSON layer loading, directory layers, environment allowlist, redaction, source labels and adapter error handling passed')

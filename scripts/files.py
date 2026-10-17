@@ -7,6 +7,19 @@ import subprocess
 import sys
 import tomllib
 
+def read_layer(base, name):
+    """Parse one JSON or TOML layer file; files are read only and must stay inside the manifest directory."""
+    path = (base / name).resolve()
+    if not path.is_relative_to(base):
+        raise ValueError('Layer file leaves manifest directory')
+    if path.stat().st_size > 4*1024*1024:
+        raise ValueError('Layer file exceeds 4 MiB')
+    if path.suffix == '.toml':
+        with path.open('rb') as stream: return tomllib.load(stream)
+    if path.suffix == '.json':
+        return json.loads(path.read_text(encoding='utf-8'))
+    raise ValueError('Only JSON and TOML layer files are supported')
+
 def load(request, base):
     request = dict(request)
     if request.get('operation') == 'diff':
@@ -16,20 +29,20 @@ def load(request, base):
     layers = []
     for layer in request['layers']:
         layer = dict(layer)
+        if 'dir' in layer:
+            # A directory expands to one layer per .json/.toml file in name order (conf.d style);
+            # each generated layer is named after its file and labelled with it as source.
+            directory = (base / layer.pop('dir')).resolve()
+            if not directory.is_relative_to(base) or not directory.is_dir():
+                raise ValueError('Layer directory must be inside the manifest directory')
+            prefix = layer.pop('name', directory.relative_to(base).as_posix())
+            for entry in sorted(p for p in directory.iterdir() if p.is_file() and p.suffix in ('.json', '.toml')):
+                relative = entry.relative_to(base).as_posix()
+                layers.append({**layer, 'name': prefix + '/' + entry.name, 'source': relative, 'value': read_layer(base, relative)})
+            continue
         if 'file' in layer:
             name = layer.pop('file')
-            path = (base / name).resolve()
-            # Layer files are read only; keep all referenced files within the manifest directory.
-            if not path.is_relative_to(base):
-                raise ValueError('Layer file leaves manifest directory')
-            if path.stat().st_size > 4*1024*1024:
-                raise ValueError('Layer file exceeds 4 MiB')
-            if path.suffix == '.toml':
-                with path.open('rb') as stream: layer['value'] = tomllib.load(stream)
-            elif path.suffix == '.json':
-                layer['value'] = json.loads(path.read_text(encoding='utf-8'))
-            else:
-                raise ValueError('Only JSON and TOML layer files are supported')
+            layer['value'] = read_layer(base, name)
             layer.setdefault('source', name)
         layers.append(layer)
     request['layers'] = layers

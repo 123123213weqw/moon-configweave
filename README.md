@@ -16,7 +16,7 @@ Layered configuration audit, implemented in MoonBit with a JSON CLI and reusable
 - **Constraints**: `required`, `type`, `enum`, `pattern` (unanchored regex search), `min_length`/`max_length` (strings and arrays), `min`, `max` per path; the first violated clause is reported in a fixed order; unknown types, clauses and invalid patterns are rejected.
 - **Diff** (`operation: "diff"`): compares two redacted configurations, annotates each change with the origins on both sides, reports a `masked_override` when a hidden value's origin chain changed without revealing it, and drops changes under `ignore` pointers (build stamps, caches).
 - **Export** (`operation: "export"`): canonical JSON text (keys in UTF-16 code unit order, no whitespace) for stable artifacts and hashing, or `format: "flat"` (one entry per leaf keyed by JSON Pointer) or `format: "dotenv"` (`KEY=value` lines for deployment, secrets still masked).
-- **Host adapter**: `scripts/files.py` reads JSON and TOML layer files (Python 3.11+ `tomllib`) and copies allow-listed environment variables; the engine never reads files itself.
+- **Host adapter**: `scripts/files.py` reads JSON and TOML layer files (Python 3.11+ `tomllib`), expands a `dir` entry into one layer per file in name order (`conf.d` style), and copies allow-listed environment variables; the engine never reads files itself.
 
 ## Build and run
 
@@ -84,7 +84,7 @@ moon test --target native               # requires a C compiler
 moon build --target js
 node scripts/check.mjs                  # the 33 fixtures through the real CLI
 python -B scripts/reference.py          # 100 configuration sets vs an independent Python oracle
-python -B scripts/integration.py        # TOML/JSON files, environment allowlist, adapter errors
+python -B scripts/integration.py        # TOML/JSON files, directory layers, environment allowlist, adapter errors
 python -B scripts/scenarios.py          # the three scenarios, 38 checks
 python -B scripts/fixtures.py --check   # generated tests and usage guide match tests/cases.json
 python -B scripts/stats.py              # source statistics by category

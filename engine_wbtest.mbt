@@ -151,3 +151,37 @@ test "flatten and pointer helpers" {
   )
   assert_eq(parse("{\"b\":1,\"a\":2}").canonical(), "{\"a\":2,\"b\":1}")
 }
+
+///|
+fn export_of(request : Value, format : String) -> Value {
+  match request {
+    Object(fields) => {
+      let copy = fields.copy()
+      copy["operation"] = String("export")
+      copy["format"] = String(format)
+      Object(copy)
+    }
+    other => other
+  }
+}
+
+///|
+test "exports round-trip through parse" {
+  let request = parse(
+    "{\"layers\":[{\"name\":\"a\",\"value\":{\"z\":{\"y\":[3,{\"x\":\"v\"}],\"w\":{}},\"b\":true,\"键\":\"é\"}}]}",
+  )
+  let config = get(run(request), "config")
+  let json = str(get(run(export_of(request, "json")), "text"))
+  assert_eq(parse(json).canonical(), json)
+  assert_eq(parse(json), config)
+  let flat = str(get(run(export_of(request, "flat")), "text"))
+  match parse(flat) {
+    Object(entries) => {
+      for pointer, leaf in entries {
+        assert_eq(config.pointer(pointer), leaf)
+      }
+      assert_eq(entries.length(), config.flatten().length())
+    }
+    _ => abort("flat export is an object")
+  }
+}

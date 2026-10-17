@@ -2007,4 +2007,4 @@ Expected: nonzero exit with an input error.
 python -B scripts/files.py MANIFEST.json
 ```
 
-A manifest is a request whose layers may name `file` entries (`.json` or `.toml`, resolved inside the manifest directory) and may list `allow_environment` names copied from the process environment. Read the current boundaries before using this adapter.
+A manifest is a request whose layers may name `file` entries (`.json` or `.toml`, resolved inside the manifest directory) or `dir` entries (expanded to one layer per `.json`/`.toml` file in name order, named `DIR/FILE`), and may list `allow_environment` names copied from the process environment. Read the current boundaries before using this adapter.

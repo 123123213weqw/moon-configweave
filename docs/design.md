@@ -20,7 +20,7 @@ Object key order in requests never affects results: merges are keyed, origins ar
 
 ## Integration
 
-The core accepts semantic values and returns JSON-shaped reports; it does not touch files, the network or processes. `scripts/files.py` is the host adapter: it loads `.json`/`.toml` layer files from the manifest directory, labels each layer with its file name, copies allow-listed environment variables, calls the compiled JS CLI over stdin, and relays only the engine's value-free error message on failure. The CLI package declares `supported_targets = "js"`; the other backends run the portable core and its tests.
+The core accepts semantic values and returns JSON-shaped reports; it does not touch files, the network or processes. `scripts/files.py` is the host adapter: it loads `.json`/`.toml` layer files from the manifest directory, expands `dir` entries into one layer per file in name order, labels each layer with its file name, copies allow-listed environment variables, calls the compiled JS CLI over stdin, and relays only the engine's value-free error message on failure. The CLI package declares `supported_targets = "js"`; the other backends run the portable core and its tests.
 
 ## Public interface
 

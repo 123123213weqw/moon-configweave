@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The file adapter expands `dir` layer entries into one layer per `.json`/`.toml` file in name order, named and labelled after the file.
 - `export` accepts `format`: `json` (default), `flat` (pointer-to-leaf object) or `dotenv` (`KEY=value` lines; keys derived from pointers, collisions rejected, unsafe values JSON-quoted).
 - `diff` accepts `ignore` pointers; changes (including masked overrides) at or below them are dropped and the applied pointers are echoed as `ignored`.
 - `sensitive_keys` designates secrets by exact key name wherever they appear, including through container aliases; the tenant scenario uses it. Alias taint now follows the actual content of the referenced container rather than designated paths that do not exist.
