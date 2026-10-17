@@ -56,21 +56,36 @@ def track(value, path, source, origins):
     return value
 
 
-def merge(base, overlay, arrays, origins, path, source):
+def strategy_at(arrays, path):
+    """arrays is a mode name or {"default": mode, mode: [pointers]}; per-path pointers match exactly."""
+    if isinstance(arrays, str):
+        return arrays
+    for mode, pointers in arrays.items():
+        if mode != 'default' and path in pointers:
+            return mode
+    return arrays.get('default', 'replace')
+
+
+def merge(base, overlay, arrays, origins, path, source, shadowed=None):
     note(origins, path, source)
     if isinstance(base, dict) and isinstance(overlay, dict):
         out = dict(base)
         for k, v in overlay.items():
             child = path + '/' + esc(k)
-            out[k] = merge(base[k], v, arrays, origins, child, source) if k in base else track(v, child, source, origins)
+            out[k] = merge(base[k], v, arrays, origins, child, source, shadowed) if k in base else track(v, child, source, origins)
         return out
-    if isinstance(base, list) and isinstance(overlay, list) and arrays != 'replace':
+    mode = strategy_at(arrays, path)
+    if isinstance(base, list) and isinstance(overlay, list) and mode != 'replace':
         out = list(base)
         for v in overlay:
-            if arrays == 'append' or v not in out:
+            if mode == 'append' or v not in out:
                 track(v, path + '/' + str(len(out)), source, origins)
                 out.append(v)
         return out
+    if shadowed is not None and base != overlay:
+        history = origins[path]
+        if len(history) >= 2 and history[-2] != source:
+            shadowed.append((path, history[-2], source))
     return track(overlay, path, source, origins)
 
 
@@ -94,9 +109,12 @@ class Oracle:
         self.sensitive = request.get('sensitive', [])
         self.origins = {}
         self.tainted = set()
+        self.shadowed = []
         merged = {}
         for layer in request['layers']:
-            merged = merge(merged, layer['value'], self.arrays, self.origins, '', layer['name'])
+            merged = merge(merged, layer['value'], self.arrays, self.origins, '', layer['name'], self.shadowed)
+        self.shadowed = [{'path': p, 'layer': l, 'by': b} for p, l, b in
+                         sorted(self.shadowed, key=lambda e: (e[0].encode('utf-16-be'), e[1].encode('utf-16-be')))]
         self.root = merged
         self.resolved = self.resolve('')
         self.masked = []
@@ -107,13 +125,29 @@ class Oracle:
     def is_masked(self, path):
         return any(under(path, s) for s in self.sensitive) or path in self.tainted
 
+    def present(self, path):
+        try:
+            at(self.root, path)
+            return True
+        except (KeyError, IndexError, TypeError, ValueError):
+            return False
+
     def reference(self, token, owner):
-        if token.startswith('env:'):
-            name = token[4:]
-            if name in self.secret_env:
-                self.tainted.add(owner)
-            return self.env[name]
-        path = token[len('config:'):]
+        target, has_fallback, fallback = token.partition(':-')
+        if target.startswith('env:'):
+            name = target[4:]
+            if name in self.env:
+                if name in self.secret_env:
+                    self.tainted.add(owner)
+                return self.env[name]
+            if has_fallback:
+                return fallback
+            raise KeyError(name)
+        path = target[len('config:'):]
+        if not self.present(path):
+            if has_fallback:
+                return fallback
+            raise KeyError(path)
         value = self.resolve(path)
         if self.is_masked(path) or any(under(s, path) for s in self.sensitive) or any(under(t, path) for t in self.tainted):
             self.tainted.add(owner)
@@ -191,9 +225,12 @@ def random_scalar():
     return random.choice([random.randint(0, 999), 'v' + str(random.randint(0, 99)), random.choice([True, False])])
 
 
+KEYS = ['alpha', 'beta', 'gamma', 'delta', 'eps', 'zeta', 'eta', 'theta', '键', 'ключ', 'café', 'a/b', 'c~d', '~1', 'x y']
+
+
 def random_tree(depth):
     tree = {}
-    for key in random.sample(['alpha', 'beta', 'gamma', 'delta', 'eps', 'zeta', 'eta', 'theta'], random.randint(2, 5)):
+    for key in random.sample(KEYS, random.randint(2, 5)):
         if depth < 3 and random.random() < 0.45:
             tree[key] = random_tree(depth + 1)
         elif random.random() < 0.15:
@@ -208,7 +245,7 @@ def overlay_for(defaults, case):
     result = {}
     for path, value in leaf_paths(defaults):
         if random.random() < 0.35:
-            parts = path.split('/')[1:]
+            parts = [part.replace('~1', '/').replace('~0', '~') for part in path.split('/')[1:]]
             node = result
             for part in parts[:-1]:
                 node = node.setdefault(part, {})
@@ -234,6 +271,14 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
 
 
+def array_paths(value, path=''):
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from array_paths(v, path + '/' + esc(k))
+    elif isinstance(value, list):
+        yield path
+
+
 def build_case(case):
     defaults = random_tree(0)
     names = ['defaults', 'org', 'tenant', 'override'][:random.randint(2, 4)]
@@ -241,6 +286,13 @@ def build_case(case):
     for name in names[1:]:
         layers.append({'name': name, 'value': overlay_for(defaults, case)})
     request = {'layers': layers, 'arrays': random.choice(['replace', 'append', 'unique'])}
+    if random.random() < 0.4:
+        # Per-path strategies: assign some array paths explicitly, keep a default for the rest.
+        arrays = {'default': random.choice(['replace', 'append', 'unique'])}
+        for pointer in {p for layer in layers for p in array_paths(layer['value'])}:
+            if random.random() < 0.6:
+                arrays.setdefault(random.choice(['replace', 'append', 'unique']), []).append(pointer)
+        request['arrays'] = arrays
     merged = {}
     for layer in layers:
         merged = merge(merged, layer['value'], request['arrays'], {}, '', layer['name'])
@@ -266,6 +318,10 @@ def build_case(case):
         else:
             token = 'config:' + target
             referenced.add(target)
+        if random.random() < 0.3:
+            # Fallbacks: an absent target with a default, or a present target whose default must be ignored.
+            token = random.choice(['env:ABSENT' + str(i) + ':-dflt' + str(i), 'config:/absent' + str(i) + ':-dflt' + str(i),
+                                   token + ':-ignored'])
         text = '${' + token + '}' if random.random() < 0.6 else 'pre-${' + token + '}-post'
         last['ref' + str(i)] = text
     sensitive = []
@@ -298,8 +354,8 @@ def build_case(case):
     return request, secrets, referenced
 
 
-coverage = {'layers': 0, 'masked': 0, 'aliases': 0, 'references': 0, 'issues': 0, 'diffs': 0,
-            'replace': 0, 'append': 0, 'unique': 0}
+coverage = {'layers': 0, 'masked': 0, 'aliases': 0, 'references': 0, 'fallbacks': 0, 'shadowed': 0, 'issues': 0,
+            'diffs': 0, 'replace': 0, 'append': 0, 'unique': 0, 'per_path': 0}
 
 
 def check_case(case):
@@ -311,10 +367,16 @@ def check_case(case):
     coverage['aliases'] += 'alias' in request['layers'][-1]['value']
     coverage['references'] += sum(k.startswith('ref') for k in request['layers'][-1]['value'])
     coverage['issues'] += bool(oracle.issues)
-    coverage[request['arrays']] += 1
+    coverage['fallbacks'] += sum(':-' in v for v in request['layers'][-1]['value'].values() if isinstance(v, str))
+    coverage['shadowed'] += len(oracle.shadowed)
+    if isinstance(request['arrays'], str):
+        coverage[request['arrays']] += 1
+    else:
+        coverage['per_path'] += 1
     assert report['config'] == oracle.redacted and report['redacted'] == oracle.redacted, case
     assert report['masked'] == oracle.masked, case
     assert report['origins'] == oracle.origins, case
+    assert report['shadowed'] == oracle.shadowed, case
     assert report['issues'] == oracle.issues and report['valid'] == (not oracle.issues), case
     export, export_out = run(dict(request, operation='export'))
     assert export['text'] == canonical(oracle.redacted), case
@@ -334,7 +396,7 @@ def check_case(case):
         coverage['diffs'] += 1
         path = random.choice(candidates)
         mutated = json.loads(json.dumps(request))
-        parts = path.split('/')[1:]
+        parts = [part.replace('~1', '/').replace('~0', '~') for part in path.split('/')[1:]]
         node = mutated['layers'][-1]['value']
         for part in parts[:-1]:
             node = node[part]
@@ -349,7 +411,7 @@ def check_case(case):
 
 for case in range(100):
     check_case(case)
-print('Independent configuration oracle: 100 tenant configuration sets agree on merge, origins, masking, constraints, export, key-order invariance and diff')
+print('Independent configuration oracle: 100 tenant configuration sets agree on merge, origins, shadowing, masking, constraints, export, key-order invariance and diff')
 print('Coverage:', ', '.join('%s=%d' % item for item in coverage.items()))
 
 # --- failure validation -----------------------------------------------------

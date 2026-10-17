@@ -5,12 +5,12 @@
 Every request passes through the same deterministic stages inside the MoonBit core:
 
 1. **Validate** the request shape: operation, array strategy, layer names (unique), layer values (objects), sensitive paths (JSON Pointers), constraint types.
-2. **Merge** layers in order. Objects merge key by key; arrays follow the request-wide strategy (`replace`, `append`, `unique`); scalars replace. With `strict_types`, an overlay that changes the kind of a non-null value is rejected. Each visited path records the contributing layer in `origins`, so a leaf's history is the ordered chain of layers that set it, and replaced subtrees keep the history of their historical paths.
-3. **Resolve** references. Strings are scanned for `${env:NAME}` and `${config:/pointer}`; a whole-string reference yields the referenced value with its type, embedded references render scalars into text. Resolution is memoized per path, detects cycles through a visiting set, and bounds depth at 128.
+2. **Merge** layers in order. Objects merge key by key; arrays follow the strategy assigned to their exact path or the request default (`replace`, `append`, `unique`); scalars replace. With `strict_types`, an overlay that changes the kind of a non-null value is rejected. Each visited path records the contributing layer in `origins`, so a leaf's history is the ordered chain of layers that set it, and replaced subtrees keep the history of their historical paths. Every replacement of a different value is also recorded in `shadowed` as (path, overridden layer, overriding layer).
+3. **Resolve** references. Strings are scanned for `${env:NAME}` and `${config:/pointer}`, optionally with a `:-literal` fallback used only when the target is absent; a whole-string reference yields the referenced value with its type, embedded references render scalars into text. Resolution is memoized per path, detects cycles through a visiting set, and bounds depth at 128.
 4. **Taint**. Reading a secret environment variable, or a configuration path that is sensitive, contains a sensitive path, or is tainted, taints the reading path. This is what makes container aliases of secrets redact as a whole.
 5. **Check constraints** against the resolved tree: `required`, then `type`, `enum`, `min`, `max` in that order; the first violated clause of each constraint becomes an issue.
 6. **Redact** sensitive and tainted paths to `***`, collecting `masked` in code-unit order.
-7. **Report**: `config` (redacted unless `reveal`), `redacted`, `masked`, `origins`, `layers` (names and optional `source` labels), `issues`, `valid`.
+7. **Report**: `config` (redacted unless `reveal`), `redacted`, `masked`, `shadowed`, `origins`, `layers` (names and optional `source` labels), `issues`, `valid`.
 
 `operation: "diff"` runs the pipeline on `old` and `new`, walks both redacted trees in sorted key order, annotates each change with the origins recorded on each side, and emits `masked_override` entries for hidden values whose origin chains differ. `operation: "export"` runs the pipeline and serializes the (redacted or revealed) configuration as canonical JSON text.
 
@@ -30,7 +30,7 @@ The core accepts semantic values and returns JSON-shaped reports; it does not to
 
 - 33 fixture cases in `tests/cases.json`, run as generated MoonBit white-box tests on JS, wasm, wasm-gc and native, and through the real CLI by `scripts/check.mjs`.
 - Property tests in `engine_wbtest.mbt`: key-order invariance, 100-level nesting, the nesting limit, 40-step interpolation chains, value-free error messages.
-- `scripts/reference.py`: an independent Python implementation of the documented semantics compared with the engine over 100 generated environment/tenant configuration sets (merge, origins, masked paths, constraints, export text, key-order invariance, diff, secret masking) plus the failure paths.
+- `scripts/reference.py`: an independent Python implementation of the documented semantics compared with the engine over 100 generated environment/tenant configuration sets (merge with global and per-path array strategies, origins, shadowed overrides, fallback references, masked paths, constraints, export text, key-order invariance, diff, secret masking; keys include unicode and RFC 6901 escapes) plus the failure paths.
 - `scripts/scenarios.py`: the three proposal scenarios executed through the host adapter with 38 checks.
 - `scripts/integration.py`: real TOML/JSON loading, environment allowlist, redaction, source labels and adapter error handling.
 - CI runs `moon check --deny-warn`, `moon fmt --check`, interface and fixture freshness checks, all of the above, and the package consumption check on demand against a registry version.

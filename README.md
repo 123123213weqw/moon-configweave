@@ -9,9 +9,9 @@ Layered configuration audit, implemented in MoonBit with a JSON CLI and reusable
 
 ## Implemented
 
-- **Layer merge**: recursive object merge in layer order with `replace` (default), `append` or `unique` array strategies; optional `strict_types` rejects type-changing overlays; nesting is limited to 128 levels.
-- **Provenance**: `origins` maps every JSON Pointer path to the ordered list of layers that contributed to it; each layer may carry a `source` label (the host adapter uses the file name) echoed in the report.
-- **Interpolation**: `${env:NAME}` and `${config:/json/pointer}` references; a whole-string reference keeps the referenced type, embedded references render scalars; cycles, missing references and depth limits are rejected.
+- **Layer merge**: recursive object merge in layer order with `replace` (default), `append` or `unique` array strategies, assignable per request or per JSON Pointer path; optional `strict_types` rejects type-changing overlays; nesting is limited to 128 levels.
+- **Provenance**: `origins` maps every JSON Pointer path to the ordered list of layers that contributed to it, `shadowed` names the layer each override replaced, and each layer may carry a `source` label (the host adapter uses the file name) echoed in the report.
+- **Interpolation**: `${env:NAME}` and `${config:/json/pointer}` references with optional `:-literal` fallbacks for absent targets; a whole-string reference keeps the referenced type, embedded references render scalars; cycles, missing references and depth limits are rejected.
 - **Secrets**: `sensitive` paths and `secret_env` names are redacted to `***`, and secrecy propagates through scalar and container aliases; `masked` lists every redacted path; output is redacted unless `reveal` is true.
 - **Constraints**: `required`, `type`, `enum`, `min`, `max` per path; the first violated clause is reported in a fixed order; unknown types are rejected.
 - **Diff** (`operation: "diff"`): compares two redacted configurations, annotates each change with the origins on both sides, and reports a `masked_override` when a hidden value's origin chain changed without revealing it.
@@ -59,7 +59,7 @@ fn example(request : Json) -> Json raise {
 
 ## Requests and results
 
-A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays`, `strict_types`, `env`, `secret_env`, `sensitive`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
+A merge request has `layers` (each `{name, value, source?}`), and optionally `arrays` (a strategy name or a per-path map), `strict_types`, `env`, `secret_env`, `sensitive`, `constraints` and `reveal`. The result has `config`, `redacted`, `masked`, `shadowed`, `origins`, `layers`, `issues` and `valid`. `operation: "diff"` takes `old` and `new` requests; `operation: "export"` takes a merge request and returns `text`. Every documented case in [docs/usage.md](docs/usage.md) is an executable fixture.
 
 ## Scenarios
 
@@ -91,10 +91,10 @@ python -B scripts/stats.py              # source statistics by category
 sh scripts/consume.sh REGISTRY_VERSION  # fresh module consumes the published package
 ```
 
-`tests/cases.json` is the single source of the 33 fixture cases; `scripts/fixtures.py` generates `fixtures_wbtest.mbt` and `docs/usage.md` from it. The oracle in `scripts/reference.py` is a separate Python implementation of the documented semantics; it checks merged values, origins, masked paths, constraint verdicts, export text, key-order invariance, diff output and secret masking over 100 generated environment/tenant configuration sets, then the failure paths (cycle, missing variable, type conflict, array strategy, deep paths). Fixtures and scenario data are synthetic and are not presented as production adoption evidence. CI runs all of the above on every push; the consumption check runs on demand against a registry version.
+`tests/cases.json` is the single source of the 33 fixture cases; `scripts/fixtures.py` generates `fixtures_wbtest.mbt` and `docs/usage.md` from it. The oracle in `scripts/reference.py` is a separate Python implementation of the documented semantics; it checks merged values (global and per-path array strategies), origins, shadowed overrides, fallback references, masked paths, constraint verdicts, export text, key-order invariance, diff output and secret masking over 100 generated environment/tenant configuration sets whose keys include unicode and RFC 6901 escapes, then the failure paths (cycle, missing variable, type conflict, array strategy, deep paths). Fixtures and scenario data are synthetic and are not presented as production adoption evidence. CI runs all of the above on every push; the consumption check runs on demand against a registry version.
 
 ## Current boundaries
 
-Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields and secret environment variable names must be designated explicitly. Default output is redacted; `reveal=true` explicitly returns plaintext. Diff compares redacted values: a change between two hidden secrets is only visible when its origin chain changed. The array strategy is global per request. There is no schema standard implementation, no escape sequence for a literal `${`, and no remote configuration source. TOML date/time values cannot be represented by the JSON adapter and are rejected. See [docs/boundaries.md](docs/boundaries.md).
+Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields and secret environment variable names must be designated explicitly. Default output is redacted; `reveal=true` explicitly returns plaintext. Diff compares redacted values: a change between two hidden secrets is only visible when its origin chain changed. Per-path array strategies match exact pointers only. There is no schema standard implementation, no escape sequence for a literal `${`, and no remote configuration source. TOML date/time values cannot be represented by the JSON adapter and are rejected. See [docs/boundaries.md](docs/boundaries.md).
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.
