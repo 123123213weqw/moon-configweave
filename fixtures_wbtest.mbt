@@ -576,6 +576,54 @@ test "export hides secrets unless revealed" {
 }
 
 ///|
+test "flat export maps pointers to leaves" {
+  let result = run(
+    parse(
+      "{\"operation\":\"export\",\"format\":\"flat\",\"layers\":[{\"name\":\"x\",\"value\":{\"b\":{\"c\":[1,{\"d\":null}]},\"a\":1}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["format"]), parse("\"flat\""))
+  assert_eq(
+    test_at(result, ["text"]),
+    parse("\"{\\\"/a\\\":1,\\\"/b/c/0\\\":1,\\\"/b/c/1/d\\\":null}\""),
+  )
+}
+
+///|
+test "dotenv export" {
+  let result = run(
+    parse(
+      "{\"operation\":\"export\",\"format\":\"dotenv\",\"layers\":[{\"name\":\"x\",\"value\":{\"database\":{\"host\":\"db.example\",\"port\":5432,\"password\":\"${env:P}\"},\"debug\":true,\"motd\":\"hello world #1\",\"empty\":\"\"}}],\"env\":{\"P\":\"pw\"},\"secret_env\":[\"P\"]}",
+    ),
+  )
+  assert_eq(test_at(result, ["format"]), parse("\"dotenv\""))
+  assert_eq(
+    test_at(result, ["text"]),
+    parse(
+      "\"DATABASE_HOST=db.example\\nDATABASE_PASSWORD=***\\nDATABASE_PORT=5432\\nDEBUG=true\\nEMPTY=\\\"\\\"\\nMOTD=\\\"hello world #1\\\"\\n\"",
+    ),
+  )
+}
+
+///|
+test "dotenv key collision" {
+  assert_true(
+    fails(
+      "{\"operation\":\"export\",\"format\":\"dotenv\",\"layers\":[{\"name\":\"x\",\"value\":{\"a-b\":1,\"a_b\":2}}]}",
+    ),
+  )
+}
+
+///|
+test "unknown export format" {
+  assert_true(
+    fails(
+      "{\"operation\":\"export\",\"format\":\"yaml\",\"layers\":[{\"name\":\"x\",\"value\":{\"a\":1}}]}",
+    ),
+  )
+}
+
+///|
 test "export orders keys by code unit" {
   let result = run(
     parse(

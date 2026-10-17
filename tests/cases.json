@@ -1308,6 +1308,105 @@
     "error": false
   },
   {
+    "name": "flat export maps pointers to leaves",
+    "request": {
+      "operation": "export",
+      "format": "flat",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "b": {
+              "c": [
+                1,
+                {
+                  "d": null
+                }
+              ]
+            },
+            "a": 1
+          }
+        }
+      ]
+    },
+    "expected": {
+      "format": "flat",
+      "text": "{\"/a\":1,\"/b/c/0\":1,\"/b/c/1/d\":null}"
+    },
+    "error": false,
+    "note": "flat renders one entry per leaf, keys sorted in code-unit order; empty containers are leaves."
+  },
+  {
+    "name": "dotenv export",
+    "request": {
+      "operation": "export",
+      "format": "dotenv",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "database": {
+              "host": "db.example",
+              "port": 5432,
+              "password": "${env:P}"
+            },
+            "debug": true,
+            "motd": "hello world #1",
+            "empty": ""
+          }
+        }
+      ],
+      "env": {
+        "P": "pw"
+      },
+      "secret_env": [
+        "P"
+      ]
+    },
+    "expected": {
+      "format": "dotenv",
+      "text": "DATABASE_HOST=db.example\nDATABASE_PASSWORD=***\nDATABASE_PORT=5432\nDEBUG=true\nEMPTY=\"\"\nMOTD=\"hello world #1\"\n"
+    },
+    "error": false,
+    "note": "dotenv keys come from the pointer: segments upper-cased, non-alphanumerics become _, segments joined with _. Values are bare unless they are empty or contain whitespace, quotes, # or =; then JSON-quoted."
+  },
+  {
+    "name": "dotenv key collision",
+    "request": {
+      "operation": "export",
+      "format": "dotenv",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a-b": 1,
+            "a_b": 2
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true,
+    "note": "Two pointers that derive the same dotenv key are rejected instead of silently overwriting."
+  },
+  {
+    "name": "unknown export format",
+    "request": {
+      "operation": "export",
+      "format": "yaml",
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": 1
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
+  },
+  {
     "name": "export orders keys by code unit",
     "request": {
       "operation": "export",

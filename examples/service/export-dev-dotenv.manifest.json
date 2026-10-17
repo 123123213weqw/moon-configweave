@@ -1,0 +1,55 @@
+{
+  "operation": "export",
+  "layers": [
+    {
+      "name": "defaults",
+      "file": "defaults.toml"
+    },
+    {
+      "name": "dev",
+      "file": "dev.json"
+    }
+  ],
+  "arrays": "unique",
+  "allow_environment": [
+    "ORDERS_DB_PASSWORD"
+  ],
+  "secret_env": [
+    "ORDERS_DB_PASSWORD"
+  ],
+  "constraints": [
+    {
+      "path": "/service/port",
+      "type": "number",
+      "min": 1,
+      "max": 65535
+    },
+    {
+      "path": "/service/workers",
+      "type": "number",
+      "min": 1,
+      "max": 64
+    },
+    {
+      "path": "/service/log_level",
+      "type": "string",
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ]
+    },
+    {
+      "path": "/database/port",
+      "type": "number",
+      "min": 1,
+      "max": 65535
+    },
+    {
+      "path": "/database/password",
+      "required": true
+    }
+  ],
+  "format": "dotenv"
+}

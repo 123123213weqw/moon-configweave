@@ -299,6 +299,33 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=False)
 
 
+def flatten(value, path=''):
+    if isinstance(value, dict) and value:
+        for k, v in value.items():
+            yield from flatten(v, path + '/' + esc(k))
+    elif isinstance(value, list) and value:
+        for i, v in enumerate(value):
+            yield from flatten(v, path + '/' + str(i))
+    else:
+        yield path, value
+
+
+def render_dotenv(value):
+    """Returns (text, collided). Mirrors the documented key and value rules."""
+    keys, lines = {}, []
+    for pointer, leaf in flatten(value):
+        key = '_'.join(''.join(c.upper() if c.isascii() and c.isalnum() else '_' for c in seg.replace('~1', '/').replace('~0', '~'))
+                       for seg in pointer.split('/')[1:])
+        if key in keys:
+            return None, True
+        keys[key] = leaf
+    for key in sorted(keys):
+        leaf = keys[key]
+        bare = isinstance(leaf, str) and leaf != '' and not any(c in leaf for c in ' \t\n\r"\'#=')
+        lines.append(key + '=' + (leaf if bare else canonical(leaf)))
+    return '\n'.join(lines) + '\n', False
+
+
 def array_paths(value, path=''):
     if isinstance(value, dict):
         for k, v in value.items():
@@ -417,6 +444,16 @@ def check_case(case):
     assert report['issues'] == oracle.issues and report['valid'] == (not oracle.issues), case
     export, export_out = run(dict(request, operation='export'))
     assert export['text'] == canonical(oracle.redacted), case
+    flat, _ = run(dict(request, operation='export', format='flat'))
+    assert flat['text'] == canonical(dict(flatten(oracle.redacted))), case
+    dotenv_lines, collision = render_dotenv(oracle.redacted)
+    if collision:
+        assert fails(dict(request, operation='export', format='dotenv')), case
+    else:
+        dotenv, dotenv_out = run(dict(request, operation='export', format='dotenv'))
+        assert dotenv['text'] == dotenv_lines, case
+        for secret in secrets:
+            assert secret not in dotenv_out, case
     shuffled, shuffled_out = run(shuffle_keys(request))
     assert canonical(shuffled['config']) == canonical(report['config']), case
     assert canonical(shuffled['origins']) == canonical(report['origins']), case

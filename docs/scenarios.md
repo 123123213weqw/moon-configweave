@@ -15,7 +15,7 @@ python -B scripts/files.py examples/service/diff.manifest.json
 
 **Process.** The adapter loads the TOML/JSON files inside the manifest directory, labels the layers with their file names, and the engine merges (unique arrays), resolves the URL through the referenced paths, redacts the password and checks the constraints.
 
-**Verifiable outputs.** The dev report is valid, `features` is `["metrics","debugger"]`, the URL is `postgres://orders@db.dev.internal:5432/orders`, and `/database/password` is masked. The prod report exits 1 with the single issue `{"path": "/database/port", "reason": "type mismatch"}` whose origins are `["defaults", "prod"]` — the wrong override is located. The diff lists every environment difference with origins on both sides, except under `/cache`, which the manifest ignores; `/database/url` changes although no layer touched it directly, because its reference changed; the password never appears.
+**Verifiable outputs.** The dev report is valid, `features` is `["metrics","debugger"]`, the URL is `postgres://orders@db.dev.internal:5432/orders`, and `/database/password` is masked; the dotenv export renders the same configuration as `SERVICE_PORT=8080`-style lines with the password still masked. The prod report exits 1 with the single issue `{"path": "/database/port", "reason": "type mismatch"}` whose origins are `["defaults", "prod"]` — the wrong override is located. The diff lists every environment difference with origins on both sides, except under `/cache`, which the manifest ignores; `/database/url` changes although no layer touched it directly, because its reference changed; the password never appears.
 
 ## 2. CI multi-platform configuration (`examples/ci`)
 

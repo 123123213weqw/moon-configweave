@@ -12,7 +12,7 @@ Every request passes through the same deterministic stages inside the MoonBit co
 6. **Redact** sensitive and tainted paths to `***`, collecting `masked` in code-unit order.
 7. **Report**: `config` (redacted unless `reveal`), `redacted`, `masked`, `shadowed`, `origins`, `layers` (names and optional `source` labels), `issues`, `valid`.
 
-`operation: "diff"` runs the pipeline on `old` and `new`, walks both redacted trees in sorted key order, annotates each change with the origins recorded on each side, emits `masked_override` entries for hidden values whose origin chains differ, and finally drops every entry at or below an `ignore` pointer. `operation: "export"` runs the pipeline and serializes the (redacted or revealed) configuration as canonical JSON text.
+`operation: "diff"` runs the pipeline on `old` and `new`, walks both redacted trees in sorted key order, annotates each change with the origins recorded on each side, emits `masked_override` entries for hidden values whose origin chains differ, and finally drops every entry at or below an `ignore` pointer. `operation: "export"` runs the pipeline and serializes the (redacted or revealed) configuration as canonical JSON text, as a flat pointer-to-leaf object, or as dotenv lines (keys derived from pointers — segments upper-cased, non-alphanumerics replaced by `_` — with collisions rejected; values bare when safe, JSON-quoted otherwise).
 
 ## Determinism
 

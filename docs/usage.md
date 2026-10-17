@@ -1549,6 +1549,124 @@ Expected result fields:
 }
 ```
 
+## flat export maps pointers to leaves
+
+flat renders one entry per leaf, keys sorted in code-unit order; empty containers are leaves.
+
+```json
+{
+  "operation": "export",
+  "format": "flat",
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "b": {
+          "c": [
+            1,
+            {
+              "d": null
+            }
+          ]
+        },
+        "a": 1
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "format": "flat",
+  "text": "{\"/a\":1,\"/b/c/0\":1,\"/b/c/1/d\":null}"
+}
+```
+
+## dotenv export
+
+dotenv keys come from the pointer: segments upper-cased, non-alphanumerics become _, segments joined with _. Values are bare unless they are empty or contain whitespace, quotes, # or =; then JSON-quoted.
+
+```json
+{
+  "operation": "export",
+  "format": "dotenv",
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "database": {
+          "host": "db.example",
+          "port": 5432,
+          "password": "${env:P}"
+        },
+        "debug": true,
+        "motd": "hello world #1",
+        "empty": ""
+      }
+    }
+  ],
+  "env": {
+    "P": "pw"
+  },
+  "secret_env": [
+    "P"
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "format": "dotenv",
+  "text": "DATABASE_HOST=db.example\nDATABASE_PASSWORD=***\nDATABASE_PORT=5432\nDEBUG=true\nEMPTY=\"\"\nMOTD=\"hello world #1\"\n"
+}
+```
+
+## dotenv key collision
+
+Two pointers that derive the same dotenv key are rejected instead of silently overwriting.
+
+```json
+{
+  "operation": "export",
+  "format": "dotenv",
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "a-b": 1,
+        "a_b": 2
+      }
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
+## unknown export format
+
+```json
+{
+  "operation": "export",
+  "format": "yaml",
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "a": 1
+      }
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## export orders keys by code unit
 
 Keys are ordered by UTF-16 code units (RFC 8785 order): shorter keys do not sort first.

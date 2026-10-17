@@ -62,6 +62,11 @@ def service():
     code, export, _ = run('service/export-dev.manifest.json')
     expect(export['text'] == canonical(dev['redacted']), 'export text equals independent canonical JSON of the redacted config')
 
+    code, dotenv, _ = run('service/export-dev-dotenv.manifest.json')
+    lines = dict(line.split('=', 1) for line in dotenv['text'].splitlines())
+    expect(code == 0 and lines['SERVICE_PORT'] == '8080' and lines['DATABASE_HOST'] == 'db.dev.internal', 'dotenv export carries the deployment values')
+    expect(lines['DATABASE_PASSWORD'] == '***' and '=' not in lines['DATABASE_URL'], 'dotenv export keeps secrets masked and quotes nothing harmful')
+
 
 def ci():
     code, linux, _ = run('ci/linux.manifest.json')

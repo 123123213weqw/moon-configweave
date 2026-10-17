@@ -693,10 +693,102 @@ fn merge_report(request : Value) -> Value raise {
 }
 
 ///|
+let formats : Array[String] = ["json", "flat", "dotenv"]
+
+///|
+/// dotenv key for a pointer: segments upper-cased, anything outside ASCII
+/// letters and digits becomes "_", segments joined with "_".
+fn dotenv_key(pointer : String) -> String raise {
+  segments(pointer)
+  .map(segment => {
+    segment
+    .to_upper()
+    .iter()
+    .map(c => {
+      if c.is_ascii_alphabetic() || c.is_ascii_digit() {
+        c
+      } else {
+        '_'
+      }
+    })
+    .collect()
+    |> String::from_array
+  })
+  .join("_")
+}
+
+///|
+/// A dotenv value is written bare when it is a plain string without
+/// whitespace, quotes, "#" or "=", and JSON-quoted otherwise; non-string
+/// leaves use their JSON form.
+fn dotenv_value(value : Value) -> String {
+  match value {
+    String(text) =>
+      if text != "" &&
+        !text
+        .iter()
+        .any(c => {
+          c == ' ' ||
+          c == '\t' ||
+          c == '\n' ||
+          c == '\r' ||
+          c == '"' ||
+          c == '\'' ||
+          c == '#' ||
+          c == '='
+        }) {
+        text
+      } else {
+        value.stringify()
+      }
+    other => canonical(other)
+  }
+}
+
+///|
+fn render_export(config : Value, format : String) -> String raise {
+  match format {
+    "json" => canonical(config)
+    "flat" => canonical(Object(config.flatten()))
+    _ => {
+      let flat = config.flatten()
+      let keys : Map[String, String] = Map([])
+      let lines : Array[String] = []
+      for pointer, _ in flat {
+        let key = dotenv_key(pointer)
+        match keys.get(key) {
+          Some(other) =>
+            raise InputError(
+              "dotenv key collision: " +
+              key +
+              " from " +
+              other +
+              " and " +
+              pointer,
+            )
+          None => keys[key] = pointer
+        }
+      }
+      let names = keys.keys().collect()
+      sort_lexical(names)
+      for name in names {
+        lines.push(name + "=" + dotenv_value(flat[keys[name]]))
+      }
+      lines.join("\n") + "\n"
+    }
+  }
+}
+
+///|
 fn export_report(request : Value) -> Value raise {
+  let format = optional_str(get(request, "format"), "json")
+  if !formats.contains(format) {
+    raise InputError("unknown export format: " + format)
+  }
   let report = merge_report(request)
   record([
-    ("text", String(canonical(get(report, "config")))),
+    ("text", String(render_export(get(report, "config"), format))),
+    ("format", String(format)),
     ("redacted", Bool(!truth(get(request, "reveal")))),
     ("layers", get(report, "layers")),
     ("issues", get(report, "issues")),

@@ -11,3 +11,4 @@
 - Nesting is limited to 128 levels and interpolation depth to 128. A single CLI request is limited to 16 MiB of UTF-8 input.
 - Canonical key order is UTF-16 code unit order, which differs from code point order for supplementary-plane characters.
 - Numeric values are finite doubles; the JSON adapter rejects NaN and infinity.
+- dotenv export derives keys from pointers (ASCII letters and digits kept, everything else becomes `_`), so distinct pointers can collide and are then rejected; values are bare only when they contain no whitespace, quotes, `#` or `=`. Non-string leaves are written in JSON form.
