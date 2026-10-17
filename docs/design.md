@@ -24,7 +24,7 @@ The core accepts semantic values and returns JSON-shaped reports; it does not to
 
 ## Public interface
 
-`execute(Json) -> Json raise`, `run(Value) -> Value raise`, `parse(StringView) -> Value raise`, `from_json`, `Value::to_json`, `Value::stringify`, `Value`, `InputError`. Trait promotions follow the moonbitlang/core policy (`extends.mbt`): `equal` and `to_string` are regular methods, derivatives go through the trait. The interface is recorded in `pkg.generated.mbti` and checked in CI.
+`execute(Json) -> Json raise`, `run(Value) -> Value raise`, `parse(StringView) -> Value raise`, `from_json`, `Value::to_json`, `Value::stringify`, `Value::flatten`, `Value::pointer`, `Value::canonical`, `Value`, `InputError`. Trait promotions follow the moonbitlang/core policy (`extends.mbt`): `equal` and `to_string` are regular methods, derivatives go through the trait. The interface is recorded in `pkg.generated.mbti` and checked in CI.
 
 ## Validation evidence
 

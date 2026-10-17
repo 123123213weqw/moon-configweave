@@ -48,3 +48,40 @@ pub fn parse(source : StringView) -> Value raise {
 pub fn execute(request : Json) -> Json raise {
   run(from_json(request)).to_json()
 }
+
+///|
+/// Maps every leaf (a scalar or an empty container) to its JSON Pointer
+/// path. The root path is "" and keys are escaped as in RFC 6901.
+pub fn Value::flatten(self : Value) -> Map[String, Value] {
+  let result : Map[String, Value] = Map([])
+  fn walk(value : Value, path : String) -> Unit {
+    match value {
+      Object(fields) if !fields.is_empty() =>
+        for key, child in fields {
+          walk(child, path + "/" + escape_key(key))
+        }
+      Array(items) if !items.is_empty() =>
+        for i, item in items {
+          walk(item, path + "/" + i.to_string())
+        }
+      leaf => result[path] = leaf
+    }
+  }
+
+  walk(self, "")
+  result
+}
+
+///|
+/// Returns the value at a JSON Pointer path, raising an input error when
+/// the path is malformed or absent.
+pub fn Value::pointer(self : Value, path : String) -> Value raise {
+  at(self, path)
+}
+
+///|
+/// Canonical JSON text: object keys in UTF-16 code unit order, no
+/// whitespace, arrays in order.
+pub fn Value::canonical(self : Value) -> String {
+  canonical(self)
+}

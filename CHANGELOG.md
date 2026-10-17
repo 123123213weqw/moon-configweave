@@ -5,6 +5,7 @@
 - `arrays` accepts per-path JSON Pointer assignments in addition to a single global strategy (`{"default": "append", "unique": ["/matrix/targets"]}`); unassigned arrays keep the default.
 - Merge reports list `shadowed` entries ({path, layer, by}) for every override that replaced a different value, pointing audits straight at the overriding layer; re-setting an identical value is not shadowing.
 - The CLI and the file adapter exit 2 for a report with constraint issues, distinct from exit 1 for a rejected request, so shell pipelines can tell invalid configuration from malformed input.
+- Public helpers `Value::flatten` (leaf values keyed by JSON Pointer), `Value::pointer` (lookup by JSON Pointer) and `Value::canonical` (canonical JSON text) for library consumers.
 - References accept a literal fallback (`${env:NAME:-text}`, `${config:/pointer:-text}`) used only when the target is absent; an empty environment value is present and still wins.
 
 ## 1.0.0 — 2026-10-16

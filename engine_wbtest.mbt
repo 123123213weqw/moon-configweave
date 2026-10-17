@@ -121,3 +121,33 @@ test "error messages never contain configuration values" {
   assert_true(message != "")
   assert_false(message.contains("hunter2"))
 }
+
+///|
+test "flatten and pointer helpers" {
+  let value = parse(
+    "{\"a\":{\"b\":[1,{\"c\":true}],\"x/y\":\"slash\",\"empty\":{}},\"n\":null}",
+  )
+  let flat = value.flatten()
+  assert_eq(flat["/a/b/0"], Number(1.0))
+  assert_eq(flat["/a/b/1/c"], Bool(true))
+  assert_eq(flat["/a/x~1y"], String("slash"))
+  assert_eq(flat["/a/empty"], Object(Map([])))
+  assert_eq(flat["/n"], Null)
+  assert_eq(flat.length(), 5)
+  assert_eq(value.pointer("/a/x~1y"), String("slash"))
+  assert_eq(value.pointer("/a/b/1"), parse("{\"c\":true}"))
+  assert_eq(value.pointer(""), value)
+  let missing = try {
+    ignore(value.pointer("/a/nope"))
+    false
+  } catch {
+    InputError(message) => message.has_prefix("missing configuration reference")
+    _ => false
+  }
+  assert_true(missing)
+  assert_eq(
+    value.canonical(),
+    "{\"a\":{\"b\":[1,{\"c\":true}],\"empty\":{},\"x/y\":\"slash\"},\"n\":null}",
+  )
+  assert_eq(parse("{\"b\":1,\"a\":2}").canonical(), "{\"a\":2,\"b\":1}")
+}

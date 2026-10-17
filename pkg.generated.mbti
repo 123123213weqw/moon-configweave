@@ -31,7 +31,10 @@ pub(all) enum Value {
   Array(Array[Value])
   Object(Map[String, Value])
 } derive(Eq, @debug.Debug)
+pub fn Value::canonical(Self) -> String
 pub fn Value::equal(Self, Self) -> Bool
+pub fn Value::flatten(Self) -> Map[String, Self]
+pub fn Value::pointer(Self, String) -> Self raise
 pub fn Value::stringify(Self) -> String
 pub fn Value::to_json(Self) -> Json
 
