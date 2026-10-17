@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- `arrays` accepts per-path JSON Pointer assignments in addition to a single global strategy (`{"default": "append", "unique": ["/matrix/targets"]}`); unassigned arrays keep the default.
+- References accept a literal fallback (`${env:NAME:-text}`, `${config:/pointer:-text}`) used only when the target is absent; an empty environment value is present and still wins.
+
 ## 1.0.0 — 2026-10-16
 
 Registry version: not yet published. mooncakes.io requires `0.x.y` version numbers, so this release needs a zero-major registry number; `0.1.0` on the registry is the initial implementation.

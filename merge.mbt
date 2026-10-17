@@ -68,6 +68,64 @@ let kinds : Array[String] = [
 let strategies : Array[String] = ["replace", "append", "unique"]
 
 ///|
+/// Array merge strategy: one default mode plus optional per-path overrides.
+/// Per-path keys are JSON Pointers matched exactly against merge paths.
+priv struct ArrayStrategy {
+  default : String
+  per_path : Map[String, String]
+}
+
+///|
+fn canonical_pointer(pointer : String) -> String raise {
+  "/" + segments(pointer).map(escape_key).join("/")
+}
+
+///|
+fn array_strategy(request : Value) -> ArrayStrategy raise {
+  match get(request, "arrays") {
+    Null => { default: "replace", per_path: Map([]), }
+    String(mode) =>
+      if strategies.contains(mode) {
+        { default: mode, per_path: Map([]), }
+      } else {
+        raise InputError("unknown array merge strategy: " + mode)
+      }
+    Object(fields) => {
+      let result : Map[String, String] = Map([])
+      let default = optional_str(
+        fields.get("default").unwrap_or(Null),
+        "replace",
+      )
+      if !strategies.contains(default) {
+        raise InputError("unknown array merge strategy: " + default)
+      }
+      for key, value in fields {
+        if key == "default" {
+          continue
+        }
+        if !strategies.contains(key) {
+          raise InputError("unknown array merge strategy: " + key)
+        }
+        for pointer in string_list(value) {
+          let normalized = canonical_pointer(pointer)
+          if result.contains(normalized) {
+            raise InputError("array strategy assigned twice: " + normalized)
+          }
+          result[normalized] = key
+        }
+      }
+      { default, per_path: result, }
+    }
+    _ => raise InputError("arrays must be a strategy or a path map")
+  }
+}
+
+///|
+fn ArrayStrategy::at(self : ArrayStrategy, path : String) -> String {
+  self.per_path.get(path).unwrap_or(self.default)
+}
+
+///|
 let nesting_limit : Int32 = 128
 
 ///|
@@ -110,7 +168,7 @@ fn merge(
   overlay : Value,
   path : String,
   source : String,
-  arrays : String,
+  arrays : ArrayStrategy,
   strict : Bool,
   origins : Map[String, Array[String]],
   depth : Int32,
@@ -144,10 +202,10 @@ fn merge(
       }
       Object(result)
     }
-    (Array(old), Array(next)) if arrays != "replace" => {
+    (Array(old), Array(next)) if arrays.at(path) != "replace" => {
       let result = old.copy()
       for value in next {
-        if arrays == "append" || !result.contains(value) {
+        if arrays.at(path) == "append" || !result.contains(value) {
           track_tree(
             value,
             path + "/" + result.length().to_string(),
@@ -195,23 +253,66 @@ fn Resolution::sensitive(self : Resolution, path : String) -> Bool {
 }
 
 ///|
+/// Whether a pointer resolves inside root; a pointer that traverses a scalar
+/// or leaves an array counts as absent, so it can fall back to a default.
+fn present(root : Value, pointer : String) -> Bool raise {
+  let mut current = root
+  for part in segments(pointer) {
+    match current {
+      Object(fields) =>
+        current = match fields.get(part) {
+          Some(v) => v
+          None => return false
+        }
+      Array(items) => {
+        let n = num(parse(part)) catch { _ => return false }
+        if n < 0.0 || n.floor() != n || n >= items.length().to_double() {
+          return false
+        }
+        current = items[n.to_int()]
+      }
+      _ => return false
+    }
+  }
+  true
+}
+
+///|
+/// A reference is `${env:NAME}`, `${config:/pointer}` or either form with a
+/// `:-literal` fallback used only when the target is absent.
 fn Resolution::reference(
   self : Resolution,
   token : String,
   owner : String,
   depth : Int32,
 ) -> Value raise {
-  if token.has_prefix("env:") {
-    let name = token[4:].to_owned()
-    if self.secret_env.contains(name) {
-      self.tainted[owner] = true
-    }
+  let (target, fallback) = match token.split_once(":-") {
+    Some((name, text)) => (name.to_owned(), Some(text.to_owned()))
+    None => (token, None)
+  }
+  if target.has_prefix("env:") {
+    let name = target[4:].to_owned()
     match self.env.get(name) {
-      Some(v) => v
-      None => raise InputError("missing environment variable: " + name)
+      Some(v) => {
+        if self.secret_env.contains(name) {
+          self.tainted[owner] = true
+        }
+        v
+      }
+      None =>
+        match fallback {
+          Some(text) => String(text)
+          None => raise InputError("missing environment variable: " + name)
+        }
     }
-  } else if token.has_prefix("config:") {
-    let path = token[7:].to_owned()
+  } else if target.has_prefix("config:") {
+    let path = target[7:].to_owned()
+    if !present(self.root, path) {
+      match fallback {
+        Some(text) => return String(text)
+        None => raise InputError("missing configuration reference: " + path)
+      }
+    }
     let value = self.resolve(path, depth + 1)
     if self.sensitive(path) ||
       self.secret_paths.any(child => under(child, path)) ||
@@ -405,10 +506,7 @@ fn describe_layers(layers : Array[Value]) -> Value raise {
 
 ///|
 fn merge_report(request : Value) -> Value raise {
-  let arrays = optional_str(get(request, "arrays"), "replace")
-  if !strategies.contains(arrays) {
-    raise InputError("unknown array merge strategy: " + arrays)
-  }
+  let arrays = array_strategy(request)
   let origins : Map[String, Array[String]] = Map([])
   let mut config = Object(Map([]))
   let names : Map[String, Bool] = Map([])

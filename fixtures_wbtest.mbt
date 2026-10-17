@@ -98,6 +98,50 @@ test "append arrays" {
 }
 
 ///|
+test "per-path array strategies" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"steps\":[\"checkout\"],\"targets\":[\"js\"],\"ignored\":[1]}},{\"name\":\"b\",\"value\":{\"steps\":[\"test\"],\"targets\":[\"js\",\"wasm\"],\"ignored\":[2]}}],\"arrays\":{\"append\":[\"/steps\"],\"unique\":[\"/targets\"]}}",
+    ),
+  )
+  assert_eq(
+    test_at(result, ["config", "steps"]),
+    parse("[\"checkout\",\"test\"]"),
+  )
+  assert_eq(test_at(result, ["config", "targets"]), parse("[\"js\",\"wasm\"]"))
+  assert_eq(test_at(result, ["config", "ignored"]), parse("[2]"))
+}
+
+///|
+test "per-path strategy default" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":[1],\"y\":[1]}},{\"name\":\"b\",\"value\":{\"x\":[2],\"y\":[2]}}],\"arrays\":{\"default\":\"append\",\"replace\":[\"/x\"]}}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "x"]), parse("[2]"))
+  assert_eq(test_at(result, ["config", "y"]), parse("[1,2]"))
+}
+
+///|
+test "array strategy assigned twice" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":[]}}],\"arrays\":{\"append\":[\"/x\"],\"unique\":[\"/x\"]}}",
+    ),
+  )
+}
+
+///|
+test "unknown path strategy" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":[]}}],\"arrays\":{\"merge\":[\"/x\"]}}",
+    ),
+  )
+}
+
+///|
 test "unknown array strategy" {
   assert_true(
     fails(
@@ -207,6 +251,49 @@ test "missing config reference" {
       "{\"layers\":[{\"name\":\"x\",\"value\":{\"b\":\"${config:/nope}\"}}]}",
     ),
   )
+}
+
+///|
+test "env reference default" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"missing\":\"${env:NOPE:-fallback}\",\"present\":\"${env:SET:-unused}\"}}],\"env\":{\"SET\":\"value\"}}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "missing"]), parse("\"fallback\""))
+  assert_eq(test_at(result, ["config", "present"]), parse("\"value\""))
+}
+
+///|
+test "config reference default" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"n\":5,\"missing\":\"${config:/nope:-zero}\",\"present\":\"${config:/n:-0}\"}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "missing"]), parse("\"zero\""))
+  assert_eq(test_at(result, ["config", "present"]), parse("5"))
+}
+
+///|
+test "empty env value is present" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"a\":\"${env:EMPTY:-fallback}\"}}],\"env\":{\"EMPTY\":\"\"}}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "a"]), parse("\"\""))
+}
+
+///|
+test "fallback does not unmask secrets" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"combo\":\"a=${env:S}-${env:NOPE:-plain}\"}}],\"env\":{\"S\":\"sec\"},\"secret_env\":[\"S\"]}",
+    ),
+  )
+  assert_eq(test_at(result, ["config", "combo"]), parse("\"***\""))
+  assert_eq(test_at(result, ["masked"]), parse("[\"/combo\"]"))
 }
 
 ///|

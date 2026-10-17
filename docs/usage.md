@@ -234,6 +234,170 @@ Expected result fields:
 }
 ```
 
+## per-path array strategies
+
+The arrays field accepts per-path JSON Pointer assignments; unassigned arrays keep the default replace strategy.
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "steps": [
+          "checkout"
+        ],
+        "targets": [
+          "js"
+        ],
+        "ignored": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "steps": [
+          "test"
+        ],
+        "targets": [
+          "js",
+          "wasm"
+        ],
+        "ignored": [
+          2
+        ]
+      }
+    }
+  ],
+  "arrays": {
+    "append": [
+      "/steps"
+    ],
+    "unique": [
+      "/targets"
+    ]
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/steps": [
+    "checkout",
+    "test"
+  ],
+  "config/targets": [
+    "js",
+    "wasm"
+  ],
+  "config/ignored": [
+    2
+  ]
+}
+```
+
+## per-path strategy default
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": [
+          1
+        ],
+        "y": [
+          1
+        ]
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "x": [
+          2
+        ],
+        "y": [
+          2
+        ]
+      }
+    }
+  ],
+  "arrays": {
+    "default": "append",
+    "replace": [
+      "/x"
+    ]
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/x": [
+    2
+  ],
+  "config/y": [
+    1,
+    2
+  ]
+}
+```
+
+## array strategy assigned twice
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": []
+      }
+    }
+  ],
+  "arrays": {
+    "append": [
+      "/x"
+    ],
+    "unique": [
+      "/x"
+    ]
+  }
+}
+```
+
+Expected: nonzero exit with an input error.
+
+## unknown path strategy
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": []
+      }
+    }
+  ],
+  "arrays": {
+    "merge": [
+      "/x"
+    ]
+  }
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## unknown array strategy
 
 ```json
@@ -533,6 +697,124 @@ Expected: nonzero exit with an input error.
 ```
 
 Expected: nonzero exit with an input error.
+
+## env reference default
+
+A :-literal fallback is used only when the target is absent; an empty string value is present and wins over the fallback.
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "missing": "${env:NOPE:-fallback}",
+        "present": "${env:SET:-unused}"
+      }
+    }
+  ],
+  "env": {
+    "SET": "value"
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/missing": "fallback",
+  "config/present": "value"
+}
+```
+
+## config reference default
+
+A whole-string reference to a present path still preserves the referenced type; only absent paths fall back to the literal text.
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "n": 5,
+        "missing": "${config:/nope:-zero}",
+        "present": "${config:/n:-0}"
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/missing": "zero",
+  "config/present": 5
+}
+```
+
+## empty env value is present
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "a": "${env:EMPTY:-fallback}"
+      }
+    }
+  ],
+  "env": {
+    "EMPTY": ""
+  }
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/a": ""
+}
+```
+
+## fallback does not unmask secrets
+
+A fallback is plain text, but a secret referenced elsewhere in the same string still masks the whole value.
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "combo": "a=${env:S}-${env:NOPE:-plain}"
+      }
+    }
+  ],
+  "env": {
+    "S": "sec"
+  },
+  "secret_env": [
+    "S"
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "config/combo": "***",
+  "masked": [
+    "/combo"
+  ]
+}
+```
 
 ## embedded env and config references
 
