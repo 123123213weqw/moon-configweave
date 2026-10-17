@@ -51,14 +51,14 @@ def main():
     cli = Path(__file__).resolve().parents[1] / '_build/js/debug/build/cmd/main/main.js'
     result = subprocess.run(['node', str(cli), '-'], input=json.dumps(request,allow_nan=False),
         capture_output=True, text=True, encoding='utf-8', timeout=60)
-    if result.returncode:
+    if result.returncode not in (0, 2):   # 2 is a report with issues, relayed below
         try:
             raise EngineError(json.loads(result.stdout)['error'])
         except (ValueError, KeyError, TypeError):
             raise RuntimeError('engine failed') from None
     report = json.loads(result.stdout)
     print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report.get('valid', True) else 1
+    return 0 if report.get('valid', True) else 2   # 1 is reserved for rejected requests
 
 if __name__ == '__main__':
     try:

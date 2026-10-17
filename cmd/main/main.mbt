@@ -24,6 +24,15 @@ fn main {
       let input = @json.parse(read_input(args[2]))
       let output = @engine.execute(input)
       println(output.stringify(indent=2))
+      // Exit codes: 0 valid report, 1 rejected request, 2 report with issues.
+      match output {
+        Json::Object(fields) =>
+          match fields.get("valid") {
+            Some(Json::False) => status(2)
+            _ => ()
+          }
+        _ => ()
+      }
     } catch {
       error => {
         println(

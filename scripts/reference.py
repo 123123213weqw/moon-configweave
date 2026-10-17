@@ -20,7 +20,7 @@ CLI = str(root / '_build/js/debug/build/cmd/main/main.js')
 def run(request):
     result = subprocess.run(['node', CLI, '-'], input=json.dumps(request), capture_output=True,
                             text=True, encoding='utf-8', timeout=30)
-    if result.returncode:
+    if result.returncode not in (0, 2):          # 2 is a report with constraint issues
         raise RuntimeError(result.stdout or result.stderr)
     return json.loads(result.stdout), result.stdout
 

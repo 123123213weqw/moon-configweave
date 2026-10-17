@@ -11,7 +11,8 @@ export function engine(request) {
     timeout: 60000,
   });
   if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(result.stdout || result.stderr);
+  // 0 is a valid report, 2 a report with issues; anything else rejected the request.
+  if (result.status !== 0 && result.status !== 2) throw new Error(result.stdout || result.stderr);
   return JSON.parse(result.stdout);
 }
 export function safeFile(base, name) {

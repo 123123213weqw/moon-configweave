@@ -43,7 +43,7 @@ def service():
     expect(dev['origins']['/database/host'] == ['defaults', 'dev'], 'override chain recorded')
 
     code, prod, _ = run('service/prod.manifest.json')
-    expect(code == 1 and not prod['valid'], 'prod configuration is reported invalid')
+    expect(code == 2 and not prod['valid'], 'prod configuration is reported invalid with exit code 2')
     expect(prod['issues'] == [{'path': '/database/port', 'reason': 'type mismatch'}], 'wrong override is identified')
     expect(prod['origins']['/database/port'] == ['defaults', 'prod'], 'wrong override is attributed to prod.json')
     expect(prod['config']['service']['port'] == 443, 'production port applied')
@@ -78,7 +78,7 @@ def ci():
     expect(json.loads(stderr) == {'error': 'type-changing overlay at /job/timeout_minutes'}, 'conflict diagnostic names the path')
 
     code, report, _ = run('ci/windows-report.manifest.json')
-    expect(code == 1 and report['issues'] == [{'path': '/job/timeout_minutes', 'reason': 'type mismatch'}], 'non-strict run reports the conflict as an issue')
+    expect(code == 2 and report['issues'] == [{'path': '/job/timeout_minutes', 'reason': 'type mismatch'}], 'non-strict run reports the conflict as an issue')
     expect(report['origins']['/job/timeout_minutes'] == ['base', 'windows'], 'conflict attributed to windows.json')
 
     code, export, _ = run('ci/export-linux.manifest.json')
@@ -94,7 +94,7 @@ def tenants():
     expect(a['masked'] == ['/auth/client_secret', '/integrations/webhook/signing_key'], 'both secrets masked')
 
     code, b, _ = run('tenants/tenant-b.manifest.json')
-    expect(code == 1 and [i['reason'] for i in b['issues']] == ['above maximum', 'not in enum'], 'tenant-b violations listed')
+    expect(code == 2 and [i['reason'] for i in b['issues']] == ['above maximum', 'not in enum'], 'tenant-b violations listed')
     expect(b['origins']['/auth/provider'] == ['defaults', 'org-acme', 'tenant-b'], 'provider downgrade attributed to tenant-b.json')
     expect(b['config']['integrations']['webhook']['signing_key'] == '***', 'hardcoded key never printed')
     expect({'path': '/auth/provider', 'layer': 'org-acme', 'by': 'tenant-b'} in b['shadowed'],

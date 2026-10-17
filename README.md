@@ -30,7 +30,7 @@ node _build/js/debug/build/cmd/main/main.js examples/request.json
 python -B scripts/files.py examples/service/dev.manifest.json  # layer files + environment via the adapter
 ```
 
-Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. Successful requests print one JSON result; invalid requests print `{"error": "..."}` and exit nonzero. Error messages name paths and variable names, never values.
+Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at most 16 MiB. The CLI prints one JSON result and exits 0 for a valid report, 2 for a report whose constraints found issues (`valid: false`), and 1 after printing `{"error": "..."}` for a rejected request. The host adapter uses the same codes. Error messages name paths and variable names, never values.
 
 ## Library use
 
