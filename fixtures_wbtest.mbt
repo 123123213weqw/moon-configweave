@@ -419,6 +419,83 @@ test "unknown constraint type" {
 }
 
 ///|
+test "pattern constraints" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"version\":\"v12\",\"stage\":\"prod\",\"name\":\"abc\",\"tags\":[\"a\",\"b\"]}}],\"constraints\":[{\"path\":\"/version\",\"pattern\":\"^v[0-9]+$\"},{\"path\":\"/stage\",\"pattern\":\"^(dev|prod)$\"},{\"path\":\"/name\",\"min_length\":2,\"max_length\":8},{\"path\":\"/tags\",\"min_length\":1,\"max_length\":3}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["valid"]), parse("true"))
+  assert_eq(test_at(result, ["issues"]), parse("[]"))
+}
+
+///|
+test "pattern mismatch" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"version\":\"latest\"}}],\"constraints\":[{\"path\":\"/version\",\"pattern\":\"^v[0-9]+$\"}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["valid"]), parse("false"))
+  assert_eq(
+    test_at(result, ["issues", "0", "reason"]),
+    parse("\"pattern mismatch\""),
+  )
+}
+
+///|
+test "pattern requires string" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"version\":12}}],\"constraints\":[{\"path\":\"/version\",\"pattern\":\"^v[0-9]+$\"}]}",
+    ),
+  )
+  assert_eq(
+    test_at(result, ["issues", "0", "reason"]),
+    parse("\"pattern requires string\""),
+  )
+}
+
+///|
+test "invalid constraint pattern" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":\"a\"}}],\"constraints\":[{\"path\":\"/x\",\"pattern\":\"(unclosed\"}]}",
+    ),
+  )
+}
+
+///|
+test "length violations" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"name\":\"ab\",\"tags\":[\"a\",\"b\",\"c\"],\"n\":5}}],\"constraints\":[{\"path\":\"/name\",\"min_length\":3},{\"path\":\"/tags\",\"max_length\":2},{\"path\":\"/n\",\"min_length\":1}]}",
+    ),
+  )
+  assert_eq(
+    test_at(result, ["issues", "0", "reason"]),
+    parse("\"below minimum length\""),
+  )
+  assert_eq(
+    test_at(result, ["issues", "1", "reason"]),
+    parse("\"above maximum length\""),
+  )
+  assert_eq(
+    test_at(result, ["issues", "2", "reason"]),
+    parse("\"length requires string or array\""),
+  )
+}
+
+///|
+test "unknown constraint clause" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":1}}],\"constraints\":[{\"path\":\"/x\",\"maximum\":3}]}",
+    ),
+  )
+}
+
+///|
 test "layer sources" {
   let result = run(
     parse(

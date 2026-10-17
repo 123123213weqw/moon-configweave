@@ -195,11 +195,24 @@ class Oracle:
         kind = {bool: 'boolean', int: 'number', float: 'number', str: 'string', list: 'array', dict: 'object',
                 type(None): 'null'}[type(value)]
         expected = constraint.get('type', 'any')
+        length = len(value) if kind in ('string', 'array') else None
         reason = None
         if expected != 'any' and expected != kind:
             reason = 'type mismatch'
         elif 'enum' in constraint and value not in constraint['enum']:
             reason = 'not in enum'
+        elif 'pattern' in constraint and kind != 'string':
+            reason = 'pattern requires string'
+        elif 'pattern' in constraint and not re.search(constraint['pattern'], value):
+            reason = 'pattern mismatch'
+        elif 'min_length' in constraint and length is None:
+            reason = 'length requires string or array'
+        elif 'min_length' in constraint and length < constraint['min_length']:
+            reason = 'below minimum length'
+        elif 'max_length' in constraint and length is None:
+            reason = 'length requires string or array'
+        elif 'max_length' in constraint and length > constraint['max_length']:
+            reason = 'above maximum length'
         elif 'min' in constraint and kind != 'number':
             reason = 'numeric minimum requires number'
         elif 'min' in constraint and value < constraint['min']:
@@ -345,9 +358,15 @@ def build_case(case):
             constraint['type'] = random.choice([k for k in ['number', 'string', 'boolean'] if k != kind])
         elif kind == 'number':
             constraint['min'], constraint['max'] = random.randint(0, 500), random.randint(500, 999)
+        elif kind == 'string' and random.random() < 0.5:
+            constraint['pattern'] = random.choice(['^v[0-9]+$', '^[a-z]+$', '[0-9]', '^(v1|v2)$'])
+        elif kind == 'string':
+            constraint['min_length'], constraint['max_length'] = random.randint(1, 3), random.randint(2, 4)
         else:
             constraint['enum'] = [value] if random.random() < 0.5 else ['nope']
         constraints.append(constraint)
+    for pointer in random.sample(sorted(set(array_paths(merged))), min(len(set(array_paths(merged))), random.randint(0, 1))):
+        constraints.append({'path': pointer, 'type': 'array', 'min_length': random.randint(0, 2), 'max_length': random.randint(2, 5)})
     if random.random() < 0.3:
         constraints.append({'path': '/missing' + str(case), 'required': True})
     request['constraints'] = constraints

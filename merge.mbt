@@ -68,6 +68,12 @@ let kinds : Array[String] = [
 let strategies : Array[String] = ["replace", "append", "unique"]
 
 ///|
+let clauses : Array[String] = [
+  "path", "required", "type", "enum", "pattern", "min_length", "max_length", "min",
+  "max",
+]
+
+///|
 /// Array merge strategy: one default mode plus optional per-path overrides.
 /// Per-path keys are JSON Pointers matched exactly against merge paths.
 priv struct ArrayStrategy {
@@ -442,7 +448,10 @@ fn Resolution::redact(
 
 ///|
 /// Returns the first violated clause of a constraint, checked in the fixed
-/// order type, enum, min, max, or "" when the value satisfies all of them.
+/// order type, enum, pattern, min_length, max_length, min, max, or "" when
+/// the value satisfies all of them. Patterns are unanchored searches in the
+/// toolchain's regex dialect; lengths count UTF-16 code units of strings or
+/// elements of arrays.
 fn violation(value : Value, constraint : Value) -> String raise {
   let expected = optional_str(get(constraint, "type"), "any")
   if !kinds.contains(expected) {
@@ -454,6 +463,42 @@ fn violation(value : Value, constraint : Value) -> String raise {
   if get(constraint, "enum") != Null &&
     !arr(get(constraint, "enum")).contains(value) {
     return "not in enum"
+  }
+  if get(constraint, "pattern") != Null {
+    let pattern = str(get(constraint, "pattern"))
+    let regex = @string.Regex::Regex(pattern) catch {
+      _ => raise InputError("invalid constraint pattern: " + pattern)
+    }
+    match value {
+      String(text) =>
+        if regex.execute(text) is None {
+          return "pattern mismatch"
+        }
+      _ => return "pattern requires string"
+    }
+  }
+  let length = match value {
+    String(text) => Some(text.length())
+    Array(items) => Some(items.length())
+    _ => None
+  }
+  if get(constraint, "min_length") != Null {
+    match length {
+      None => return "length requires string or array"
+      Some(n) =>
+        if n.to_double() < num(get(constraint, "min_length")) {
+          return "below minimum length"
+        }
+    }
+  }
+  if get(constraint, "max_length") != Null {
+    match length {
+      None => return "length requires string or array"
+      Some(n) =>
+        if n.to_double() > num(get(constraint, "max_length")) {
+          return "above maximum length"
+        }
+    }
   }
   if get(constraint, "min") != Null {
     if kind(value) != "number" {
@@ -481,6 +526,11 @@ fn check_constraints(
 ) -> Array[Value] raise {
   let issues : Array[Value] = []
   for constraint in constraints {
+    for clause, _ in obj(constraint) {
+      if !clauses.contains(clause) {
+        raise InputError("unknown constraint clause: " + clause)
+      }
+    }
     let path = str(get(constraint, "path"))
     ignore(segments(path))
     let selected = Some(at(value, path)) catch { _ => None }

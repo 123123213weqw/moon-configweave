@@ -1146,6 +1146,210 @@ Expected result fields:
 
 Expected: nonzero exit with an input error.
 
+## pattern constraints
+
+pattern is an unanchored search in the toolchain's regex dialect (explicit classes such as [0-9]; no \\d shorthands); anchor with ^ and $ to match the whole value. min_length and max_length count UTF-16 code units of strings or elements of arrays.
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "version": "v12",
+        "stage": "prod",
+        "name": "abc",
+        "tags": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/version",
+      "pattern": "^v[0-9]+$"
+    },
+    {
+      "path": "/stage",
+      "pattern": "^(dev|prod)$"
+    },
+    {
+      "path": "/name",
+      "min_length": 2,
+      "max_length": 8
+    },
+    {
+      "path": "/tags",
+      "min_length": 1,
+      "max_length": 3
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "valid": true,
+  "issues": []
+}
+```
+
+## pattern mismatch
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "version": "latest"
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/version",
+      "pattern": "^v[0-9]+$"
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "valid": false,
+  "issues/0/reason": "pattern mismatch"
+}
+```
+
+## pattern requires string
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "version": 12
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/version",
+      "pattern": "^v[0-9]+$"
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "issues/0/reason": "pattern requires string"
+}
+```
+
+## invalid constraint pattern
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": "a"
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/x",
+      "pattern": "(unclosed"
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
+## length violations
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "name": "ab",
+        "tags": [
+          "a",
+          "b",
+          "c"
+        ],
+        "n": 5
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/name",
+      "min_length": 3
+    },
+    {
+      "path": "/tags",
+      "max_length": 2
+    },
+    {
+      "path": "/n",
+      "min_length": 1
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "issues/0/reason": "below minimum length",
+  "issues/1/reason": "above maximum length",
+  "issues/2/reason": "length requires string or array"
+}
+```
+
+## unknown constraint clause
+
+Clause names are validated so a misspelled clause cannot silently pass.
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": 1
+      }
+    }
+  ],
+  "constraints": [
+    {
+      "path": "/x",
+      "maximum": 3
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## layer sources
 
 A layer may carry a free-form source label (the host adapter uses the file name) which the report echoes in layer order.
