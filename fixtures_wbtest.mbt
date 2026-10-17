@@ -181,6 +181,42 @@ test "non-strict scalar replaces object" {
 }
 
 ///|
+test "shadowed overrides are listed" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"defaults\",\"value\":{\"db\":{\"port\":1},\"same\":7}},{\"name\":\"prod\",\"value\":{\"db\":{\"port\":2},\"same\":7}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["shadowed", "0", "path"]), parse("\"/db/port\""))
+  assert_eq(test_at(result, ["shadowed", "0", "layer"]), parse("\"defaults\""))
+  assert_eq(test_at(result, ["shadowed", "0", "by"]), parse("\"prod\""))
+}
+
+///|
+test "identical overlay is not shadowing" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":1}},{\"name\":\"b\",\"value\":{\"x\":1}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["shadowed"]), parse("[]"))
+  assert_eq(test_at(result, ["config", "x"]), parse("1"))
+}
+
+///|
+test "shadowing follows layer order" {
+  let result = run(
+    parse(
+      "{\"layers\":[{\"name\":\"a\",\"value\":{\"x\":1}},{\"name\":\"b\",\"value\":{\"x\":2}},{\"name\":\"c\",\"value\":{\"x\":3}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["shadowed", "0", "layer"]), parse("\"a\""))
+  assert_eq(test_at(result, ["shadowed", "0", "by"]), parse("\"b\""))
+  assert_eq(test_at(result, ["shadowed", "1", "layer"]), parse("\"b\""))
+  assert_eq(test_at(result, ["shadowed", "1", "by"]), parse("\"c\""))
+}
+
+///|
 test "strict types allow null base" {
   let result = run(
     parse(

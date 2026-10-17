@@ -171,6 +171,7 @@ fn merge(
   arrays : ArrayStrategy,
   strict : Bool,
   origins : Map[String, Array[String]],
+  shadowed : Array[(String, String, String)],
   depth : Int32,
 ) -> Value raise {
   if depth > nesting_limit {
@@ -192,6 +193,7 @@ fn merge(
               arrays,
               strict,
               origins,
+              shadowed,
               depth + 1,
             )
           None => {
@@ -223,6 +225,13 @@ fn merge(
         overlay != Null &&
         kind(base) != kind(overlay) {
         raise InputError("type-changing overlay at " + path)
+      }
+      // This layer replaced a different value: name the layer it overrode.
+      if base != overlay {
+        let history = origins.get(path).unwrap_or([])
+        if history.length() >= 2 && history[history.length() - 2] != source {
+          shadowed.push((path, history[history.length() - 2], source))
+        }
       }
       track_tree(overlay, path, source, origins)
       overlay
@@ -508,6 +517,7 @@ fn describe_layers(layers : Array[Value]) -> Value raise {
 fn merge_report(request : Value) -> Value raise {
   let arrays = array_strategy(request)
   let origins : Map[String, Array[String]] = Map([])
+  let shadowed : Array[(String, String, String)] = []
   let mut config = Object(Map([]))
   let names : Map[String, Bool] = Map([])
   let layers = arr(get(request, "layers"))
@@ -527,6 +537,7 @@ fn merge_report(request : Value) -> Value raise {
       arrays,
       truth(get(request, "strict_types")),
       origins,
+      shadowed,
       0,
     )
   }
@@ -557,10 +568,25 @@ fn merge_report(request : Value) -> Value raise {
   let redacted = resolution.redact(resolved, "", masked)
   sort_lexical(masked)
   let history = origins.map((_, sources) => strings(sources))
+  shadowed.sort_by((a, b) => {
+    String::lexical_compare(a.0 + "\u{0}" + a.1, b.0 + "\u{0}" + b.1)
+  })
   record([
     ("config", if truth(get(request, "reveal")) { resolved } else { redacted }),
     ("redacted", redacted),
     ("masked", strings(masked)),
+    (
+      "shadowed",
+      Array(
+        shadowed.map(entry => {
+          record([
+            ("path", String(entry.0)),
+            ("layer", String(entry.1)),
+            ("by", String(entry.2)),
+          ])
+        }),
+      ),
+    ),
     ("origins", Object(history)),
     ("layers", describe_layers(layers)),
     ("issues", Array(issues)),

@@ -534,6 +534,113 @@ Expected result fields:
 }
 ```
 
+## shadowed overrides are listed
+
+Every replacement of a different value names the layer that was overridden and the layer that did it; re-setting the same value is not shadowing.
+
+```json
+{
+  "layers": [
+    {
+      "name": "defaults",
+      "value": {
+        "db": {
+          "port": 1
+        },
+        "same": 7
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "port": 2
+        },
+        "same": 7
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "shadowed/0/path": "/db/port",
+  "shadowed/0/layer": "defaults",
+  "shadowed/0/by": "prod"
+}
+```
+
+## identical overlay is not shadowing
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "x": 1
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "shadowed": [],
+  "config/x": 1
+}
+```
+
+## shadowing follows layer order
+
+```json
+{
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "x": 2
+      }
+    },
+    {
+      "name": "c",
+      "value": {
+        "x": 3
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "shadowed/0/layer": "a",
+  "shadowed/0/by": "b",
+  "shadowed/1/layer": "b",
+  "shadowed/1/by": "c"
+}
+```
+
 ## strict types allow null base
 
 ```json

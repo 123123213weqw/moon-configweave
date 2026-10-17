@@ -460,6 +460,94 @@
     "note": "Without strict_types a layer may replace a container by a scalar; the origins show which layer did it."
   },
   {
+    "name": "shadowed overrides are listed",
+    "request": {
+      "layers": [
+        {
+          "name": "defaults",
+          "value": {
+            "db": {
+              "port": 1
+            },
+            "same": 7
+          }
+        },
+        {
+          "name": "prod",
+          "value": {
+            "db": {
+              "port": 2
+            },
+            "same": 7
+          }
+        }
+      ]
+    },
+    "expected": {
+      "shadowed/0/path": "/db/port",
+      "shadowed/0/layer": "defaults",
+      "shadowed/0/by": "prod"
+    },
+    "error": false,
+    "note": "Every replacement of a different value names the layer that was overridden and the layer that did it; re-setting the same value is not shadowing."
+  },
+  {
+    "name": "identical overlay is not shadowing",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "expected": {
+      "shadowed": [],
+      "config/x": 1
+    },
+    "error": false
+  },
+  {
+    "name": "shadowing follows layer order",
+    "request": {
+      "layers": [
+        {
+          "name": "a",
+          "value": {
+            "x": 1
+          }
+        },
+        {
+          "name": "b",
+          "value": {
+            "x": 2
+          }
+        },
+        {
+          "name": "c",
+          "value": {
+            "x": 3
+          }
+        }
+      ]
+    },
+    "expected": {
+      "shadowed/0/layer": "a",
+      "shadowed/0/by": "b",
+      "shadowed/1/layer": "b",
+      "shadowed/1/by": "c"
+    },
+    "error": false
+  },
+  {
     "name": "strict types allow null base",
     "request": {
       "layers": [

@@ -47,6 +47,8 @@ def service():
     expect(prod['issues'] == [{'path': '/database/port', 'reason': 'type mismatch'}], 'wrong override is identified')
     expect(prod['origins']['/database/port'] == ['defaults', 'prod'], 'wrong override is attributed to prod.json')
     expect(prod['config']['service']['port'] == 443, 'production port applied')
+    expect({'path': '/database/port', 'layer': 'defaults', 'by': 'prod'} in prod['shadowed'],
+           'the wrong override is listed with the layer it shadowed')
 
     code, diff, _ = run('service/diff.manifest.json')
     changed = {c['path']: c for c in diff['changes']}
@@ -95,6 +97,8 @@ def tenants():
     expect(code == 1 and [i['reason'] for i in b['issues']] == ['above maximum', 'not in enum'], 'tenant-b violations listed')
     expect(b['origins']['/auth/provider'] == ['defaults', 'org-acme', 'tenant-b'], 'provider downgrade attributed to tenant-b.json')
     expect(b['config']['integrations']['webhook']['signing_key'] == '***', 'hardcoded key never printed')
+    expect({'path': '/auth/provider', 'layer': 'org-acme', 'by': 'tenant-b'} in b['shadowed'],
+           'the provider downgrade names the organization policy it overrode')
 
     code, audit, _ = run('tenants/audit.manifest.json')
     kinds = {(c['type'], c['path']) for c in audit['changes']}
