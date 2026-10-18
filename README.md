@@ -85,13 +85,14 @@ moon build --target js
 node scripts/check.mjs                  # the 33 fixtures through the real CLI
 python -B scripts/reference.py          # 100 configuration sets vs an independent Python oracle
 python -B scripts/integration.py        # TOML/JSON files, directory layers, environment allowlist, adapter errors
-python -B scripts/scenarios.py          # the three scenarios, 38 checks
+python -B scripts/scenarios.py          # the three scenarios, 43 checks
+python -B scripts/bench.py --check       # scale: 24k-key merge, 1000 references, depth 100
 python -B scripts/fixtures.py --check   # generated tests and usage guide match tests/cases.json
 python -B scripts/stats.py              # source statistics by category
 sh scripts/consume.sh REGISTRY_VERSION  # fresh module consumes the published package
 ```
 
-`tests/cases.json` is the single source of the 33 fixture cases; `scripts/fixtures.py` generates `fixtures_wbtest.mbt` and `docs/usage.md` from it. The oracle in `scripts/reference.py` is a separate Python implementation of the documented semantics; it checks merged values (global and per-path array strategies), origins, shadowed overrides, fallback references, masked paths, constraint verdicts, export text, key-order invariance, diff output and secret masking over 100 generated environment/tenant configuration sets whose keys include unicode and RFC 6901 escapes, then the failure paths (cycle, missing variable, type conflict, array strategy, deep paths). Fixtures and scenario data are synthetic and are not presented as production adoption evidence. CI runs all of the above on every push; the consumption check runs on demand against a registry version.
+`tests/cases.json` is the single source of the 33 fixture cases; `scripts/fixtures.py` generates `fixtures_wbtest.mbt` and `docs/usage.md` from it. The oracle in `scripts/reference.py` is a separate Python implementation of the documented semantics; it checks merged values (global and per-path array strategies), origins, shadowed overrides, fallback references, masked paths, constraint verdicts, export text, key-order invariance, diff output and secret masking over 100 generated environment/tenant configuration sets whose keys include unicode and RFC 6901 escapes, then the failure paths (cycle, missing variable, type conflict, array strategy, deep paths). Fixtures and scenario data are synthetic and are not presented as production adoption evidence. CI runs all of the above on every push, the scale check included; the consumption check runs on demand against a registry version. Recorded benchmark observations live in [docs/benchmarks.md](docs/benchmarks.md).
 
 ## Current boundaries
 

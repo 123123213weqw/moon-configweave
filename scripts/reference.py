@@ -522,29 +522,34 @@ def check_case(case):
             assert secret not in diff_out, case
 
 
-for case in range(100):
-    check_case(case)
-print('Independent configuration oracle: 100 tenant configuration sets agree on merge, origins, shadowing, masking, constraints, export, key-order invariance and diff')
-print('Coverage:', ', '.join('%s=%d' % item for item in coverage.items()))
+def main():
+    for case in range(100):
+        check_case(case)
+    print('Independent configuration oracle: 100 tenant configuration sets agree on merge, origins, shadowing, masking, constraints, export, key-order invariance and diff')
+    print('Coverage:', ', '.join('%s=%d' % item for item in coverage.items()))
 
-# --- failure validation -----------------------------------------------------
+    # --- failure validation -----------------------------------------------------
 
-def layers(*values):
-    return {'layers': [{'name': 'l' + str(i), 'value': v} for i, v in enumerate(values)]}
+    def layers(*values):
+        return {'layers': [{'name': 'l' + str(i), 'value': v} for i, v in enumerate(values)]}
 
-assert fails(dict(layers({'a': '${config:/b}', 'b': '${config:/a}'})))                       # interpolation cycle
-assert fails(dict(layers({'a': '${env:NOPE}'})))                                              # missing environment variable
-assert fails(dict(layers({'x': 1}, {'x': 'one'}), strict_types=True))                        # type conflict
-assert fails(dict(layers({'x': [1]}, {'x': [2]}), arrays='concat'))                          # unknown array strategy
-deep_ok, deep_bad = {}, {}
-node_ok, node_bad = deep_ok, deep_bad
-for i in range(100):
-    node_ok = node_ok.setdefault('d', {})
-for i in range(131):
-    node_bad = node_bad.setdefault('d', {})
-node_ok['leaf'] = 1
-pointer = '/d' * 100 + '/leaf'
-report, _ = run(layers(deep_ok, json.loads(json.dumps(deep_ok))))
-assert at(report['config'], pointer) == 1 and report['origins'][pointer] == ['l0', 'l1']   # deep path traceable
-assert fails(layers(deep_bad, json.loads(json.dumps(deep_bad))))                             # nesting limit
-print('Failure validation: cycle, missing environment variable, type conflict, array strategy and deep path limits rejected')
+    assert fails(dict(layers({'a': '${config:/b}', 'b': '${config:/a}'})))                       # interpolation cycle
+    assert fails(dict(layers({'a': '${env:NOPE}'})))                                              # missing environment variable
+    assert fails(dict(layers({'x': 1}, {'x': 'one'}), strict_types=True))                        # type conflict
+    assert fails(dict(layers({'x': [1]}, {'x': [2]}), arrays='concat'))                          # unknown array strategy
+    deep_ok, deep_bad = {}, {}
+    node_ok, node_bad = deep_ok, deep_bad
+    for _ in range(100):
+        node_ok = node_ok.setdefault('d', {})
+    for _ in range(131):
+        node_bad = node_bad.setdefault('d', {})
+    node_ok['leaf'] = 1
+    pointer = '/d' * 100 + '/leaf'
+    report, _ = run(layers(deep_ok, json.loads(json.dumps(deep_ok))))
+    assert at(report['config'], pointer) == 1 and report['origins'][pointer] == ['l0', 'l1']   # deep path traceable
+    assert fails(layers(deep_bad, json.loads(json.dumps(deep_bad))))                             # nesting limit
+    print('Failure validation: cycle, missing environment variable, type conflict, array strategy and deep path limits rejected')
+
+
+if __name__ == '__main__':
+    main()

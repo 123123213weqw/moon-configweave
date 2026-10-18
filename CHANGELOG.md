@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `scripts/bench.py` validates correctness at scale against the oracle (24k-key twelve-layer merge, 1000 interpolation references, depth-100 merge) and records throughput observations in docs/benchmarks.md; the scale check runs in CI.
 - `infer` derives a constraint set from the resolved values observed after every layer (consistent type, enums for small string sets bounded by `max_enum`, numeric bounds, `required`); masked paths are never inferred and the result is verified against every observation.
 - The file adapter expands `dir` layer entries into one layer per `.json`/`.toml` file in name order, named and labelled after the file.
 - `export` accepts `format`: `json` (default), `flat` (pointer-to-leaf object) or `dotenv` (`KEY=value` lines; keys derived from pointers, collisions rejected, unsafe values JSON-quoted).
