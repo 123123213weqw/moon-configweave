@@ -14,6 +14,16 @@ fn segments(pointer : String) -> Array[String] raise InputError {
   let parts = pointer.split("/").collect()
   ignore(parts.remove(0))
   parts.map(part => {
+    let chars = part.to_owned().to_array()
+    for i = 0; i < chars.length(); i = i + 1 {
+      if chars[i] == '~' &&
+        (
+          i + 1 == chars.length() ||
+          (chars[i + 1] != '0' && chars[i + 1] != '1')
+        ) {
+        raise InputError("invalid JSON pointer escape")
+      }
+    }
     part
     .to_owned()
     .replace_all(old="~1", new="/")
@@ -33,6 +43,11 @@ fn at(root : Value, pointer : String) -> Value raise {
             raise InputError("missing configuration reference: " + pointer)
         }
       Array(items) => {
+        if part == "" ||
+          (part.length() > 1 && part.has_prefix("0")) ||
+          !part.to_array().all(c => c >= '0' && c <= '9') {
+          raise InputError("invalid canonical array index")
+        }
         let n = num(parse(part)) catch {
           _ => raise InputError("invalid array pointer")
         }
@@ -963,6 +978,7 @@ fn diff_report(request : Value) -> Value raise {
 ///|
 pub fn run(request : Value) -> Value raise {
   match get(request, "operation") {
+    String("audit") => audit_report(request)
     Null | String("merge") => merge_report(request)
     String("diff") => diff_report(request)
     String("export") => export_report(request)
