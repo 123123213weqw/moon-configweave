@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- `infer` derives a constraint set from the resolved values observed after every layer (consistent type, enums for small string sets bounded by `max_enum`, numeric bounds, `required`); masked paths are never inferred and the result is verified against every observation.
 - The file adapter expands `dir` layer entries into one layer per `.json`/`.toml` file in name order, named and labelled after the file.
 - `export` accepts `format`: `json` (default), `flat` (pointer-to-leaf object) or `dotenv` (`KEY=value` lines; keys derived from pointers, collisions rejected, unsafe values JSON-quoted).
 - `diff` accepts `ignore` pointers; changes (including masked overrides) at or below them are dropped and the applied pointers are echoed as `ignored`.

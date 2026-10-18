@@ -2001,6 +2001,187 @@ Expected result fields:
 
 Expected: nonzero exit with an input error.
 
+## infer derives constraints from observations
+
+infer resolves the configuration after every layer and derives one constraint per surviving leaf: the consistent observed type, an enum when few distinct strings were seen, numeric bounds, and required. The inferred set is checked against every observation, so valid is guaranteed true.
+
+```json
+{
+  "operation": "infer",
+  "layers": [
+    {
+      "name": "dev",
+      "value": {
+        "db": {
+          "host": "db.dev",
+          "port": 5432,
+          "level": "debug"
+        }
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "host": "db.prod",
+          "port": 6543,
+          "level": "info",
+          "password": "pw"
+        }
+      }
+    }
+  ],
+  "sensitive": [
+    "/db/password"
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "constraints/0/path": "/db/host",
+  "constraints/0/type": "string",
+  "constraints/0/enum": [
+    "db.dev",
+    "db.prod"
+  ],
+  "constraints/2/path": "/db/port",
+  "constraints/2/min": 5432,
+  "constraints/2/max": 6543,
+  "constraint_count": 3,
+  "path_count": 3,
+  "valid": true
+}
+```
+
+## infer never reports masked paths
+
+Paths that are masked in any observation are skipped entirely, so secret values cannot leak into an inferred enum.
+
+```json
+{
+  "operation": "infer",
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "password": "pw"
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "password": "pw2"
+      }
+    }
+  ],
+  "sensitive": [
+    "/password"
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "constraints": [],
+  "constraint_count": 0,
+  "valid": true
+}
+```
+
+## infer max_enum bounds enums
+
+max_enum (1-64, default 8) controls when a string set becomes an enum; here the two hosts stay unconstrained while the port keeps its bounds.
+
+```json
+{
+  "operation": "infer",
+  "max_enum": 1,
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "host": "one",
+        "port": 1
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "host": "two",
+        "port": 2
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "constraints/0/type": "string",
+  "constraints/1/min": 1,
+  "constraints/1/max": 2
+}
+```
+
+## infer mixed types omit the type clause
+
+When observations disagree on the type, only required is inferred; strict_types would have rejected such layers already.
+
+```json
+{
+  "operation": "infer",
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": 1
+      }
+    },
+    {
+      "name": "b",
+      "value": {
+        "x": "one"
+      }
+    }
+  ]
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "constraints/0/path": "/x",
+  "constraints/0/required": true
+}
+```
+
+## infer rejects bad max_enum
+
+```json
+{
+  "operation": "infer",
+  "max_enum": 0,
+  "layers": [
+    {
+      "name": "a",
+      "value": {
+        "x": 1
+      }
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## Host adapter
 
 ```sh

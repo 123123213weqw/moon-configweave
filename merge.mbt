@@ -608,6 +608,141 @@ fn describe_layers(layers : Array[Value]) -> Value raise {
 }
 
 ///|
+fn resolution_of(request : Value, config : Value) -> Resolution raise {
+  let resolution : Resolution = {
+    root: config,
+    env: if get(request, "env") == Null {
+      Map([])
+    } else {
+      obj(get(request, "env"))
+    },
+    secret_paths: optional_strings(get(request, "sensitive")),
+    secret_keys: optional_strings(get(request, "sensitive_keys")),
+    secret_env: optional_strings(get(request, "secret_env")),
+    visiting: Map([]),
+    resolved: Map([]),
+    tainted: Map([]),
+  }
+  for path in resolution.secret_paths {
+    ignore(segments(path))
+  }
+  if resolution.secret_keys.contains("") {
+    raise InputError("sensitive key names must not be empty")
+  }
+  resolution
+}
+
+///|
+/// Derives a constraint set from the resolved values observed at each leaf
+/// path after every layer: the consistent observed type, an enum for small
+/// string sets, numeric bounds from the observations, and required for
+/// every surviving path. Masked paths are never inferred, so no secret
+/// value can leak into a constraint.
+fn infer_report(request : Value) -> Value raise {
+  let max_enum = optional_num(get(request, "max_enum"), 8.0).to_int()
+  if max_enum < 1 || max_enum > 64 {
+    raise InputError("max_enum must be between 1 and 64")
+  }
+  let arrays = array_strategy(request)
+  let observations : Map[String, Array[Value]] = Map([])
+  let masked : Array[String] = []
+  let mut config = Object(Map([]))
+  let names : Map[String, Bool] = Map([])
+  for layer in arr(get(request, "layers")) {
+    let source = str(get(layer, "name"))
+    if names.contains(source) {
+      raise InputError("duplicate layer name: " + source)
+    }
+    names[source] = true
+    let value = get(layer, "value")
+    ignore(obj(value))
+    config = merge(
+      config,
+      value,
+      "",
+      source,
+      arrays,
+      truth(get(request, "strict_types")),
+      Map([]),
+      [],
+      0,
+    )
+    let resolution = resolution_of(request, config)
+    let resolved = resolution.resolve("", 0)
+    for pointer, leaf in resolved.flatten() {
+      if resolution.sensitive(pointer) {
+        continue
+      }
+      let seen = observations.get(pointer).unwrap_or([])
+      seen.push(leaf)
+      observations[pointer] = seen
+    }
+  }
+  ignore(masked)
+  let paths = observations.keys().collect()
+  sort_lexical(paths)
+  let constraints : Array[Value] = []
+  for path in paths {
+    let seen = observations[path]
+    let fields = [("path", String(path)), ("required", Bool(true))]
+    let kinds : Array[String] = []
+    for leaf in seen {
+      if leaf != Null && !kinds.contains(kind(leaf)) {
+        kinds.push(kind(leaf))
+      }
+    }
+    if kinds.length() == 1 {
+      fields.push(("type", String(kinds[0])))
+      if kinds[0] == "number" {
+        let mut low = seen[0]
+        let mut high = seen[0]
+        for leaf in seen {
+          match leaf {
+            Number(n) => {
+              low = Number(if num(low) > n { n } else { num(low) })
+              high = Number(if num(high) < n { n } else { num(high) })
+            }
+            _ => ()
+          }
+        }
+        fields.push(("min", low))
+        fields.push(("max", high))
+      }
+      if kinds[0] == "string" {
+        let values : Array[String] = []
+        for leaf in seen {
+          match leaf {
+            String(text) => if !values.contains(text) { values.push(text) }
+            _ => ()
+          }
+        }
+        if values.length() >= 1 && values.length() <= max_enum {
+          sort_lexical(values)
+          fields.push(("enum", strings(values)))
+        }
+      }
+    }
+    constraints.push(record(fields))
+  }
+  // The inferred set must accept every observed configuration.
+  let checked = match request {
+    Object(fields_request) => {
+      let copy = fields_request.copy()
+      copy["constraints"] = Array(constraints)
+      merge_report(Object(copy))
+    }
+    other => other
+  }
+  record([
+    ("constraints", Array(constraints)),
+    ("constraint_count", Number(constraints.length().to_double())),
+    ("path_count", Number(observations.length().to_double())),
+    ("issues", get(checked, "issues")),
+    ("valid", get(checked, "valid")),
+  ])
+}
+
+///|
 fn merge_report(request : Value) -> Value raise {
   let arrays = array_strategy(request)
   let origins : Map[String, Array[String]] = Map([])
@@ -635,26 +770,7 @@ fn merge_report(request : Value) -> Value raise {
       0,
     )
   }
-  let resolution : Resolution = {
-    root: config,
-    env: if get(request, "env") == Null {
-      Map([])
-    } else {
-      obj(get(request, "env"))
-    },
-    secret_paths: optional_strings(get(request, "sensitive")),
-    secret_keys: optional_strings(get(request, "sensitive_keys")),
-    secret_env: optional_strings(get(request, "secret_env")),
-    visiting: Map([]),
-    resolved: Map([]),
-    tainted: Map([]),
-  }
-  for path in resolution.secret_paths {
-    ignore(segments(path))
-  }
-  if resolution.secret_keys.contains("") {
-    raise InputError("sensitive key names must not be empty")
-  }
+  let resolution = resolution_of(request, config)
   let resolved = resolution.resolve("", 0)
   let constraints = if get(request, "constraints") == Null {
     []
@@ -850,6 +966,7 @@ pub fn run(request : Value) -> Value raise {
     Null | String("merge") => merge_report(request)
     String("diff") => diff_report(request)
     String("export") => export_report(request)
+    String("infer") => infer_report(request)
     String(other) => raise InputError("unknown operation: " + other)
     _ => raise InputError("operation must be a string")
   }

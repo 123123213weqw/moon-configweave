@@ -310,6 +310,37 @@ def flatten(value, path=''):
         yield path, value
 
 
+def infer_constraints(request, max_enum=8):
+    """Constraints derived from the resolved values observed after every layer, as documented."""
+    def kind_of(v):
+        return {bool: 'boolean', int: 'number', float: 'number', str: 'string', list: 'array', dict: 'object', type(None): 'null'}[type(v)]
+    observations = {}
+    layers = request['layers']
+    for k in range(1, len(layers) + 1):
+        prefix = Oracle({**request, 'layers': layers[:k]})
+        for pointer, leaf in flatten(prefix.resolved):
+            if prefix.is_masked(pointer):
+                continue
+            observations.setdefault(pointer, []).append(leaf)
+    constraints = []
+    for path in sorted(observations, key=lambda p: p.encode('utf-16-be')):
+        seen = observations[path]
+        constraint = {'path': path, 'required': True}
+        kinds = {kind_of(v) for v in seen if v is not None}
+        if len(kinds) == 1:
+            kind = kinds.pop()
+            constraint['type'] = kind
+            if kind == 'number':
+                numbers = [v for v in seen if v is not None]
+                constraint['min'], constraint['max'] = min(numbers), max(numbers)
+            if kind == 'string':
+                values = sorted({v for v in seen if isinstance(v, str)}, key=lambda t: t.encode('utf-16-be'))
+                if 1 <= len(values) <= max_enum:
+                    constraint['enum'] = values
+        constraints.append(constraint)
+    return constraints
+
+
 def render_dotenv(value):
     """Returns (text, collided). Mirrors the documented key and value rules."""
     keys, lines = {}, []
@@ -444,6 +475,9 @@ def check_case(case):
     assert report['issues'] == oracle.issues and report['valid'] == (not oracle.issues), case
     export, export_out = run(dict(request, operation='export'))
     assert export['text'] == canonical(oracle.redacted), case
+    if not (request.get('sensitive') or request.get('sensitive_keys') or request.get('secret_env')):
+        inferred, _ = run(dict(request, operation='infer'))
+        assert inferred['constraints'] == infer_constraints(request) and inferred['valid'] and inferred['issues'] == [], case
     flat, _ = run(dict(request, operation='export', format='flat'))
     assert flat['text'] == canonical(dict(flatten(oracle.redacted))), case
     dotenv_lines, collision = render_dotenv(oracle.redacted)

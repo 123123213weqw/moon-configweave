@@ -725,3 +725,74 @@ test "diff is equal when only ignored paths differ" {
 test "unknown operation" {
   assert_true(fails("{\"operation\":\"bogus\",\"layers\":[]}"))
 }
+
+///|
+test "infer derives constraints from observations" {
+  let result = run(
+    parse(
+      "{\"operation\":\"infer\",\"layers\":[{\"name\":\"dev\",\"value\":{\"db\":{\"host\":\"db.dev\",\"port\":5432,\"level\":\"debug\"}}},{\"name\":\"prod\",\"value\":{\"db\":{\"host\":\"db.prod\",\"port\":6543,\"level\":\"info\",\"password\":\"pw\"}}}],\"sensitive\":[\"/db/password\"]}",
+    ),
+  )
+  assert_eq(
+    test_at(result, ["constraints", "0", "path"]),
+    parse("\"/db/host\""),
+  )
+  assert_eq(test_at(result, ["constraints", "0", "type"]), parse("\"string\""))
+  assert_eq(
+    test_at(result, ["constraints", "0", "enum"]),
+    parse("[\"db.dev\",\"db.prod\"]"),
+  )
+  assert_eq(
+    test_at(result, ["constraints", "2", "path"]),
+    parse("\"/db/port\""),
+  )
+  assert_eq(test_at(result, ["constraints", "2", "min"]), parse("5432"))
+  assert_eq(test_at(result, ["constraints", "2", "max"]), parse("6543"))
+  assert_eq(test_at(result, ["constraint_count"]), parse("3"))
+  assert_eq(test_at(result, ["path_count"]), parse("3"))
+  assert_eq(test_at(result, ["valid"]), parse("true"))
+}
+
+///|
+test "infer never reports masked paths" {
+  let result = run(
+    parse(
+      "{\"operation\":\"infer\",\"layers\":[{\"name\":\"a\",\"value\":{\"password\":\"pw\"}},{\"name\":\"b\",\"value\":{\"password\":\"pw2\"}}],\"sensitive\":[\"/password\"]}",
+    ),
+  )
+  assert_eq(test_at(result, ["constraints"]), parse("[]"))
+  assert_eq(test_at(result, ["constraint_count"]), parse("0"))
+  assert_eq(test_at(result, ["valid"]), parse("true"))
+}
+
+///|
+test "infer max_enum bounds enums" {
+  let result = run(
+    parse(
+      "{\"operation\":\"infer\",\"max_enum\":1,\"layers\":[{\"name\":\"a\",\"value\":{\"host\":\"one\",\"port\":1}},{\"name\":\"b\",\"value\":{\"host\":\"two\",\"port\":2}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["constraints", "0", "type"]), parse("\"string\""))
+  assert_eq(test_at(result, ["constraints", "1", "min"]), parse("1"))
+  assert_eq(test_at(result, ["constraints", "1", "max"]), parse("2"))
+}
+
+///|
+test "infer mixed types omit the type clause" {
+  let result = run(
+    parse(
+      "{\"operation\":\"infer\",\"layers\":[{\"name\":\"a\",\"value\":{\"x\":1}},{\"name\":\"b\",\"value\":{\"x\":\"one\"}}]}",
+    ),
+  )
+  assert_eq(test_at(result, ["constraints", "0", "path"]), parse("\"/x\""))
+  assert_eq(test_at(result, ["constraints", "0", "required"]), parse("true"))
+}
+
+///|
+test "infer rejects bad max_enum" {
+  assert_true(
+    fails(
+      "{\"operation\":\"infer\",\"max_enum\":0,\"layers\":[{\"name\":\"a\",\"value\":{\"x\":1}}]}",
+    ),
+  )
+}
