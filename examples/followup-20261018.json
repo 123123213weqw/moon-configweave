@@ -1,0 +1,26 @@
+{
+  "operation": "audit",
+  "layers": [
+    {
+      "name": "base",
+      "value": {
+        "db": {
+          "password": "fixture-secret",
+          "port": 1
+        }
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "port": 2
+        }
+      }
+    }
+  ],
+  "sensitive": [
+    "/db/password"
+  ],
+  "reveal": true
+}

@@ -1847,5 +1847,78 @@
     },
     "expected": {},
     "error": true
+  },
+  {
+    "name": "followup value-free secret audit",
+    "request": {
+      "operation": "audit",
+      "layers": [
+        {
+          "name": "base",
+          "value": {
+            "db": {
+              "password": "fixture-secret",
+              "port": 1
+            }
+          }
+        },
+        {
+          "name": "prod",
+          "value": {
+            "db": {
+              "port": 2
+            }
+          }
+        }
+      ],
+      "sensitive": [
+        "/db/password"
+      ],
+      "reveal": true
+    },
+    "expected": {
+      "values_included": false,
+      "path_count": 4,
+      "masked": [
+        "/db/password"
+      ],
+      "paths/2/type": "redacted",
+      "paths/3/layers": [
+        "base",
+        "prod"
+      ],
+      "valid": true
+    },
+    "error": false
+  },
+  {
+    "name": "followup empty audit",
+    "request": {
+      "operation": "audit",
+      "layers": []
+    },
+    "expected": {
+      "path_count": 1,
+      "values_included": false
+    },
+    "error": false
+  },
+  {
+    "name": "followup canonical pointer error",
+    "request": {
+      "layers": [
+        {
+          "name": "x",
+          "value": {
+            "a": [
+              1
+            ],
+            "b": "${config:/a/0.0}"
+          }
+        }
+      ]
+    },
+    "expected": {},
+    "error": true
   }
 ]

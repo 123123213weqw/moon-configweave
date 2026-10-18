@@ -796,3 +796,37 @@ test "infer rejects bad max_enum" {
     ),
   )
 }
+
+///|
+test "followup value-free secret audit" {
+  let result = run(
+    parse(
+      "{\"operation\":\"audit\",\"layers\":[{\"name\":\"base\",\"value\":{\"db\":{\"password\":\"fixture-secret\",\"port\":1}}},{\"name\":\"prod\",\"value\":{\"db\":{\"port\":2}}}],\"sensitive\":[\"/db/password\"],\"reveal\":true}",
+    ),
+  )
+  assert_eq(test_at(result, ["values_included"]), parse("false"))
+  assert_eq(test_at(result, ["path_count"]), parse("4"))
+  assert_eq(test_at(result, ["masked"]), parse("[\"/db/password\"]"))
+  assert_eq(test_at(result, ["paths", "2", "type"]), parse("\"redacted\""))
+  assert_eq(
+    test_at(result, ["paths", "3", "layers"]),
+    parse("[\"base\",\"prod\"]"),
+  )
+  assert_eq(test_at(result, ["valid"]), parse("true"))
+}
+
+///|
+test "followup empty audit" {
+  let result = run(parse("{\"operation\":\"audit\",\"layers\":[]}"))
+  assert_eq(test_at(result, ["path_count"]), parse("1"))
+  assert_eq(test_at(result, ["values_included"]), parse("false"))
+}
+
+///|
+test "followup canonical pointer error" {
+  assert_true(
+    fails(
+      "{\"layers\":[{\"name\":\"x\",\"value\":{\"a\":[1],\"b\":\"${config:/a/0.0}\"}}]}",
+    ),
+  )
+}
