@@ -2182,6 +2182,93 @@ Expected result fields:
 
 Expected: nonzero exit with an input error.
 
+## followup value-free secret audit
+
+```json
+{
+  "operation": "audit",
+  "layers": [
+    {
+      "name": "base",
+      "value": {
+        "db": {
+          "password": "fixture-secret",
+          "port": 1
+        }
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "port": 2
+        }
+      }
+    }
+  ],
+  "sensitive": [
+    "/db/password"
+  ],
+  "reveal": true
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "values_included": false,
+  "path_count": 4,
+  "masked": [
+    "/db/password"
+  ],
+  "paths/2/type": "redacted",
+  "paths/3/layers": [
+    "base",
+    "prod"
+  ],
+  "valid": true
+}
+```
+
+## followup empty audit
+
+```json
+{
+  "operation": "audit",
+  "layers": []
+}
+```
+
+Expected result fields:
+
+```json
+{
+  "path_count": 1,
+  "values_included": false
+}
+```
+
+## followup canonical pointer error
+
+```json
+{
+  "layers": [
+    {
+      "name": "x",
+      "value": {
+        "a": [
+          1
+        ],
+        "b": "${config:/a/0.0}"
+      }
+    }
+  ]
+}
+```
+
+Expected: nonzero exit with an input error.
+
 ## Host adapter
 
 ```sh

@@ -37,7 +37,7 @@ Pass `-` to read a UTF-8 JSON request from stdin. A single request must be at mo
 mooncakes.io currently accepts only zero-major versions (`moon publish` rejects anything else with "In this very early stage, the major version must be '0'"), so repository releases and registry versions are numbered separately. The registry version corresponding to each repository release is recorded in [CHANGELOG.md](CHANGELOG.md); `0.1.0` is the initial implementation.
 
 ```sh
-moon add 123123213weqw/moon_configweave@REGISTRY_VERSION
+moon add 123123213weqw/moon_configweave@0.10.0
 ```
 
 In the consumer's `moon.pkg`:
@@ -99,3 +99,14 @@ sh scripts/consume.sh REGISTRY_VERSION  # fresh module consumes the published pa
 Core input is JSON values; TOML is parsed by the optional Python 3.11+ host adapter. Secret fields (by path or by key name) and secret environment variable names must be designated explicitly. Default output is redacted; `reveal=true` explicitly returns plaintext. Diff compares redacted values: a change between two hidden secrets is only visible when its origin chain changed. Per-path array strategies match exact pointers only. There is no schema standard implementation, no escape sequence for a literal `${`, and no remote configuration source. TOML date/time values cannot be represented by the JSON adapter and are rejected. See [docs/boundaries.md](docs/boundaries.md).
 
 See [source and dependency attribution](THIRD_PARTY.md). This release does not establish competition eligibility or organizer acceptance.
+
+
+## 2026-10-18 follow-up
+
+同步保留最新公开实现的层合并、来源、约束、推断、导出和环境差异能力，新增 audit：只报告路径、类型、脱敏状态及来源层，不输出配置值。即使 reveal=true，audit 仍使用 redacted 结果；被遮蔽的容器在边界停止展开。严格校验 JSON Pointer 转义及规范数组下标。
+
+值本身不进入审计结果，但路径和层名仍是调用方提供的元信息。audit 不是秘密自动发现器；敏感字段须正确指定。约束及导出仍以现有受支持语义为准，TOML 由宿主 Python 标准库读取。
+
+Repository release: 1.1.0; installable MoonCakes module: `123123213weqw/moon_configweave@0.10.0`. Earlier repository 1.0.0 labels are retained as history; the module uses the registry-compatible zero-major sequence.
+
+Current source contains 75 MoonBit test declarations and 66 CLI fixtures (generated fixture tests are included in the declaration count). Run `python -B scripts/followup_reference.py` for independent follow-up oracles and `examples/followup-20261018.json` for the new scenario.

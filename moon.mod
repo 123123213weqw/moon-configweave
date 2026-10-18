@@ -1,6 +1,6 @@
 name = "123123213weqw/moon_configweave"
 
-version = "1.0.0"
+version = "0.10.0"
 
 readme = "README.md"
 

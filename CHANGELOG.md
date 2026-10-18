@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.0 — 2026-10-18
+
+Registry version: 0.10.0.
+
+同步保留最新公开实现的层合并、来源、约束、推断、导出和环境差异能力，新增 audit：只报告路径、类型、脱敏状态及来源层，不输出配置值。即使 reveal=true，audit 仍使用 redacted 结果；被遮蔽的容器在边界停止展开。严格校验 JSON Pointer 转义及规范数组下标。
+
 ## Unreleased
 
 - `scripts/bench.py` validates correctness at scale against the oracle (24k-key twelve-layer merge, 1000 interpolation references, depth-100 merge) and records throughput observations in docs/benchmarks.md; the scale check runs in CI.

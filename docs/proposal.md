@@ -1,52 +1,98 @@
-# Moon ConfigWeave 项目申报书
+# Moon ConfigWeave 项目申报参考书
 
-项目负责人账号：123123213weqw。项目方向：开发者工具与应用基础组件。
-GitHub：https://github.com/123123213weqw/moon-configweave公开仓库，拟用 `123123213weqw/moon-configweave`。
-当前阶段：选题与架构规划；本文按立项阶段表述功能、交付和验收目标。
+## 配置归一化、来源审计与秘密边界
 
-## 项目简介与通用价值
+账号：123123213weqw；主要语言：MoonBit；许可：Apache-2.0；更新日期：2026-10-18。  
+GitHub：[https://github.com/123123213weqw/moon-configweave](https://github.com/123123213weqw/moon-configweave)  
+仓库发行：1.1.0；公共模块：[123123213weqw/moon_configweave@0.10.0](https://mooncakes.io/docs/123123213weqw/moon_configweave@0.10.0)
 
-解释应用最终配置如何形成，并识别环境差异和错误覆盖。项目采用 MoonBit 实现核心处理能力，提供可复用库接口与命令行入口，使使用者能够把同一能力嵌入应用、离线处理或 CI 流程。适用范围通过不同用途的完整示例说明，并以输入、判断过程和可核验输出体现实际价值。
+本文供个人参考，按本次实际代码及边界编写。公开提交、CI、发布和独立安装结果另附交付核对表，不以材料修订代替主办方重新审核。
 
-## 核心功能
+## 一、项目职责与本次改进
 
-JSON/TOML 适配；路径和值模型；明确的合并策略；变量插值与环检测；来源追踪；类型约束；环境差异与遮罩；稳定导出和 CLI。每个最终值可以追溯到文件、层级及覆盖链。
+同步保留最新公开实现的层合并、来源、约束、推断、导出和环境差异能力，新增 audit：只报告路径、类型、脱敏状态及来源层，不输出配置值。即使 reveal=true，audit 仍使用 redacted 结果；被遮蔽的容器在边界停止展开。严格校验 JSON Pointer 转义及规范数组下标。
 
-## 三个完整使用场景
+已有核心能力继续保留，具体入口及完整使用方式见仓库 README 与 API 清单。本次对旧仓库先做版本同步，保留公开历史，不将此前已完成的功能重写为本轮新成果。
 
-1. 服务环境配置：输入默认值、开发及生产覆盖文件和环境变量，按规则合并并检查类型；输出可部署配置、每个值的来源与环境差异，使维护者能够发现误覆盖。
+## 二、可复现输入及预期结果
 
-2. CI 多平台配置：输入基础任务参数和各平台的覆盖配置，执行数组与对象的明确合并策略；输出稳定配置及冲突诊断，帮助构建维护者复核不同平台实际运行参数。
+以下为新增固定夹具之一，输入与字段断言同时纳入测试。更多场景见 tests/cases.json 和 examples/；所有样本均为合成数据，不作为真实用户证据。
 
-3. 多租户配置审计：输入应用默认、组织和租户三级配置，解析引用并追踪最终值；输出租户差异与遮罩后的审计报告，定位异常覆盖而不在普通报告中泄露敏感值。
+```json
+{
+  "operation": "audit",
+  "layers": [
+    {
+      "name": "base",
+      "value": {
+        "db": {
+          "password": "fixture-secret",
+          "port": 1
+        }
+      }
+    },
+    {
+      "name": "prod",
+      "value": {
+        "db": {
+          "port": 2
+        }
+      }
+    }
+  ],
+  "sensitive": [
+    "/db/password"
+  ],
+  "reveal": true
+}
+```
 
-## 技术路线与工程实现
+预期结果字段：
 
-把配置解析结果转为统一路径值树，按固定层级和合并策略合成；插值使用依赖图检测环，每次覆盖更新来源记录，导出前执行类型约束与遮罩。核心逻辑采用有类型的数据结构、明确错误结果和可测试执行步骤；文件、网络或进程适配与核心处理分层。实现过程中用小规模确定性输入建立正确性基准，再使用真实场景和规模数据检查可用性。对外暴露稳定接口，避免把演示脚本作为唯一使用方式。
+```json
+{
+  "values_included": false,
+  "path_count": 4,
+  "masked": [
+    "/db/password"
+  ],
+  "paths/2/type": "redacted",
+  "paths/3/layers": [
+    "base",
+    "prod"
+  ],
+  "valid": true
+}
+```
 
-## 预计交付与验收方式
+## 三、实现和验证结构
 
-交付目标包括公开 MoonBit 源码、库接口、CLI、三个完整场景及输入来源、单元与集成测试、适用目标的 CI、安装使用说明、设计与边界文档、源码统计及独立安装验证记录。有效生产 MoonBit 源码内部估算为 4,000–7,000 行，测试、示例、生成语料和辅助脚本分别统计，该估算不作为官方验收门槛。
+领域计算由 MoonBit 完成，宿主侧负责文件、HTTP、进程或独立参考算法。可复用接口保持 execute(Json)→Json 与语义值 run 入口；实际公开接口以 pkg.generated.mbti 为准。当前根目录包含 75 项 MoonBit 测试声明，CLI 固定夹具 66 组；其中自动生成的夹具测试按生成测试统计，不算额外生产实现。
 
-一百环境/租户配置的合并结果与独立参考一致；重排无关键不影响结果；敏感值在普通日志及报告中均遮罩。失败验证覆盖插值循环、环境变量缺失、类型冲突、数组合并策略与深路径。十月不做远端配置中心，约束不扩展成 PolicyForge 的通用表达式系统。
+复核路径为四后端核心测试、真实 CLI 夹具、独立参考检查、宿主场景（适用时）、公开 CI 和公共包独立安装。新增检查运行：
 
-## 原创性、来源与开源计划
+```sh
+moon update
+moon test --target js
+moon test --target wasm
+moon test --target wasm-gc
+moon test --target native
+moon build --target js
+node scripts/check.mjs
+python -B scripts/followup_reference.py
+moon run cmd/main --target js -- examples/followup-20261018.json
+```
 
-拟原创实现本项目的数据模型、处理流程和业务判断，不把九月项目旧代码或简单拆分计入此次新成果。[TOML 1.0.0 规范](https://toml.io/en/v1.0.0)作为设计或标准参考，当前没有声明已复制该项目代码。计划采用 Apache-2.0；实际采用的依赖、参考实现和数据集逐项记录版本、链接、许可证与使用范围。生态查重仍须补齐同类项目的接口、能力和差异证据，不能声称已证明唯一性。
+native 需要 C 编译器；标为带变化/问题的有效报告可能使用退出码 2。实际通过记录和对应源码版本见交付核对表，命令列表本身不作为通过证明。
 
-## 制作安排与技术取舍
+## 四、开发记录与来源
 
-本项目属于第 2 轮：先完成模型与接口，再交付可运行的核心链路和三个场景，随后完成规模验证、失败路径、当前提交的 CI 与公开包独立消费验证。主要取舍是让统一核心能力服务多个场景，同时将运行环境和暂不支持的语义写清；完成状态以实际源码和验证记录更新。目标截止日期为 2026-10-31，进度以实际里程碑为准。
+本次提交按错误修正、针对性测试、领域实现、独立参考和版本文档记录，均使用真实日期并保留原有历史。2026-09-01 后的数量与哈希由 GitHub API 核查；达到数量条件不意味着所有提交已获主办方认定。
 
+共同 JSON/CLI 脚手架按基础设施说明，不当作各项目独有创新。实际依赖、参考与许可见 THIRD_PARTY.md；第三方代码、生成夹具和文档不计为独立生产实现。功能有重叠时，不以“纯 MoonBit”“带测试”或“无 I/O”主张唯一性，项目差异应落到可执行机制与案例。
 
-## 已完成版本与原方案的区别 (completed version versus the plan)
+## 五、当前边界
 
-Public repository: https://github.com/123123213weqw/moon-configweave
+值本身不进入审计结果，但路径和层名仍是调用方提供的元信息。audit 不是秘密自动发现器；敏感字段须正确指定。约束及导出仍以现有受支持语义为准，TOML 由宿主 Python 标准库读取。
 
-**Current release: 1.0.0 (2026-10-16), the complete implementation of the proposed scope.** The sections above are the original proposal text from the planning stage and are kept unchanged for reference; the facts below describe what is actually delivered.
-
-- The three usage scenarios (service environment configuration, CI multi-platform configuration, multi-tenant configuration audit) exist as real input files under `examples/` and are executed end to end by `scripts/scenarios.py`.
-- The acceptance checks are executable: `scripts/reference.py` compares the engine with an independent Python implementation over 100 environment/tenant configuration sets, including key-order invariance and secret masking; the failure checks cover interpolation cycles, missing environment variables, type conflicts, array merge strategies and deep paths (128-level limit).
-- Deliverables are in the repository: public MoonBit source, library interface, CLI, scenarios with their input sources, unit/integration/scenario tests, CI for the applicable targets, installation and usage documentation, design and boundary documents, source statistics (`scripts/stats.py`) and independent consumption verification of the published package (`scripts/consume.sh`).
-- The source line-count range in the proposal was an internal planning estimate; it is not an acceptance threshold and is not reported as a result. `scripts/stats.py` reports the actual numbers.
-- Not done and not claimed: a remote configuration source, a general expression or schema language for constraints, TOML date/time values and the other limits listed in `docs/boundaries.md`.
+完整原方案的代码量、性能目标与用户效果不自动沿用为当前成果；统计以源码实际值及本机/CI 的测量记录为准。比赛准入、团队/项目数解释和最终审核仍由主办方决定，本轮不代提交报名。
